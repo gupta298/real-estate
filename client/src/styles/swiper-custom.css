@@ -1,0 +1,60 @@
+/* Swiper custom styles for Blue Flag Realty */
+.swiper-button-next,
+.swiper-button-prev {
+  color: #d4af37; /* bf-gold */
+  opacity: 0.8;
+  transition: opacity 0.3s;
+  filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.5));
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.swiper-button-next::after,
+.swiper-button-prev::after {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.swiper-button-next:hover,
+.swiper-button-prev:hover {
+  opacity: 1;
+  background-color: #fff;
+}
+
+.swiper-pagination-bullet-active {
+  background-color: #1a335a !important; /* bf-blue */
+}
+
+/* Peek-a-boo effect for carousels */
+.featured-swiper .swiper-slide,
+.off-market-swiper .swiper-slide {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.featured-swiper .swiper-slide-active,
+.off-market-swiper .swiper-slide-active {
+  opacity: 1;
+  transform: scale(1);
+  z-index: 10;
+}
+
+.featured-swiper .swiper-slide:not(.swiper-slide-active),
+.off-market-swiper .swiper-slide:not(.swiper-slide-active) {
+  opacity: 0.6;
+  transform: scale(0.95);
+}
+
+/* Positioning navigation arrows */
+.swiper-button-prev {
+  left: 10px;
+}
+
+.swiper-button-next {
+  right: 10px;
+}
+

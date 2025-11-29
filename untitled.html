@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blue Flag Realty Inc. | Luxury Real Estate</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load Swiper CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+    <!-- Custom Tailwind Configuration for primary colors -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'bf-blue': '#1a335a', // Dark Blue for branding
+                        'bf-gold': '#d4af37', // Gold accent
+                        'bf-light': '#f7f7f7', // Light background
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Ensures smooth height transition for dropdown simulation */
+        .dropdown-menu {
+            transition: all 0.3s ease-in-out;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .group:hover .dropdown-menu {
+            max-height: 200px; /* Sufficient height to show content */
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Swiper custom styles */
+        .swiper-button-next, .swiper-button-prev {
+            color: #d4af37; /* bf-gold */
+            opacity: 0.8;
+            transition: opacity 0.3s;
+            filter: drop-shadow(0 0 4px rgba(0,0,0,0.5));
+            background-color: rgba(255,255,255,0.8); /* Added background circle for better visibility */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .swiper-button-next::after, .swiper-button-prev::after {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .swiper-button-next:hover, .swiper-button-prev:hover {
+            opacity: 1;
+            background-color: #fff;
+        }
+        .swiper-pagination-bullet-active {
+            background-color: #1a335a !important; /* bf-blue */
+        }
+        
+        /* PEEK-A-BOO EFFECT CSS
+           Applied to both Featured and Off-Market carousels 
+        */
+        .featured-swiper .swiper-slide,
+        .off-market-swiper .swiper-slide {
+            width: 85%; /* Mobile: slide takes up 85% of container */
+            height: auto; /* Allow height to adjust based on content */
+        }
+        
+        @media (min-width: 768px) {
+            .featured-swiper .swiper-slide,
+            .off-market-swiper .swiper-slide {
+                width: 500px; /* Desktop: fixed width */
+            }
+        }
+
+        /* Dim non-active slides */
+        .featured-swiper .swiper-slide-active,
+        .off-market-swiper .swiper-slide-active {
+            opacity: 1;
+            transition: opacity 0.3s;
+            transform: scale(1.0); /* Scale up active slide slightly if desired, or keep 1.0 */
+            z-index: 10;
+        }
+        .featured-swiper .swiper-slide:not(.swiper-slide-active),
+        .off-market-swiper .swiper-slide:not(.swiper-slide-active) {
+            opacity: 0.6;
+            transition: opacity 0.3s;
+            transform: scale(0.95); /* Slight shrink for depth effect */
+        }
+        
+        /* Positioning navigation arrows */
+        .swiper-button-prev { left: 10px; }
+        .swiper-button-next { right: 10px; }
+        
+    </style>
+</head>
+<body class="bg-white text-gray-800 font-sans">
+    
+    <!-- Define the constant URL for the listing detail page -->
+    <script>
+        const LISTING_DETAIL_URL = "https://blueflagindy.com/listing-detail/1173783621/8831-Rockwood-LN-Indianapolis-IN?source=search&timeStamp=1764390191427&condition=%7B%7D&listingSort=RELEVANCE&timezone=GMT%2B0000&pageSize=6&siteId=126629&page=1&";
+    </script>
+
+
+    <!-- Top Contact Bar -->
+    <div class="bg-bf-blue text-white py-2 text-sm hidden sm:block">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <!-- Social Icons -->
+            <div class="flex space-x-4">
+                <a href="#" class="hover:text-bf-gold transition duration-200"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0H5a5 5 0 00-5 5v14a5 5 0 005 5h14a5 5 0 005-5V5a5 5 0 00-5-5zm-2 7h-2.34c-.58 0-.66.57-.66 1.32v1.68h3l-.33 3h-2.67v8h-3v-8h-2V13h2v-3c0-1.74 1.13-3 3.43-3H17V7z"/></svg></a>
+                <a href="#" class="hover:text-bf-gold transition duration-200"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 4.14L18 12v6h-4v-4h-4v4H6v-6l6-4.86z"/></svg></a>
+                <a href="#" class="hover:text-bf-gold transition duration-200"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.16c3.2 0 3.58.01 4.85.07 1.4.07 2.37.28 3.19.6 1.05.41 1.77 1.12 2.17 2.17.32.82.53 1.79.6 3.19.06 1.27.07 1.64.07 4.85s-.01 3.58-.07 4.85c-.07 1.4-.28 2.37-.6 3.19-.41 1.05-1.12 1.77-2.17 2.17-.82.32-1.79.53-3.19.6-1.27.06-1.64.07-4.85.07zm0 1.9c-3.11 0-3.48.01-4.75.07-1.35.06-2.19.27-2.73.48-.68.27-1.16.63-1.66 1.13-.5.5-.86.98-1.13 1.66-.21.54-.42 1.38-.48 2.73-.06 1.27-.07 1.64-.07 4.75s.01 3.48.07 4.75c.06 1.35.27 2.19.48 2.73.27.68.63 1.16 1.13 1.66.5.5.98.86 1.66 1.13.54.21 1.38.42 2.73.48 1.27.06 1.64.07 4.75.07s3.48-.01 4.75-.07c1.35-.06 2.19-.27 2.73-.48.68-.27 1.16-.63 1.66-1.13.5-.5.86-.98 1.13-1.66.21-.54.42-1.38.48-2.73.06-1.27.07-1.64.07-4.75s-.01-3.48-.07-4.75c-.06-1.35-.27-2.19-.48-2.73-.27-.68-.63-1.16-1.13-1.66-.5-.5-.98-.86-1.66-1.13-.54-.21-1.38-.42-2.73-.48-1.27-.06-1.64-.07-4.75-.07zM12 17.5c-2.47 0-4.5-2.03-4.5-4.5s2.03-4.5 4.5-4.5 4.5 2.03 4.5 4.5-2.03 4.5-4.5 4.5zm0 1.9c-1.44 0-2.6 1.16-2.6 2.6s1.16 2.6 2.6 2.6 2.6-1.16 2.6-2.6-1.16-2.6-2.6-2.6zm6.2-.87c-.4 0-.72.32-.72.72s.32.72.72.72.72-.32.72-.72-.32-.72-.72-.72z"/></svg></a>
+                <a href="#" class="hover:text-bf-gold transition duration-200"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M21.54 6.649c-.21-1.29-.86-2.34-2.1-2.74-1.1-.41-3.55-.51-6.44-.51s-5.34.1-6.44.51c-1.24.4-1.89 1.45-2.1 2.74C3 8 3 12 3 12s0 4 .54 5.35c.21 1.29.86 2.34 2.1 2.74 1.1.41 3.55.51 6.44.51s5.34-.1 6.44-.51c1.24-.4 1.89-1.45 2.1-2.74C21 16 21 12 21 12s0-4-.54-5.35zM10 16V8l6 4-6 4z"/></svg></a>
+                <a href="#" class="hover:text-bf-gold transition duration-200"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.039 2.01c-5.518 0-9.981 4.463-9.981 9.981 0 1.637.4 3.203 1.168 4.593l-1.26 4.704 4.81-1.238c1.33.725 2.83 1.117 4.73 1.117h.001c5.518 0 9.981-4.463 9.981-9.981 0-2.678-1.042-5.2-2.906-7.065-1.865-1.864-4.387-2.906-7.065-2.906zM17.51 15.69c-.1.25-.52.48-.96.65-.4.16-.83.25-1.27.25-.43 0-.87-.09-1.28-.25s-.77-.41-1.02-.78c-.24-.37-.77-1.11-1.12-1.78-.35-.67-.2-1.19-.11-1.43.07-.2.25-.33.4-.49.15-.16.33-.4.49-.57.16-.17.2-.3.33-.5.14-.2.07-.37-.03-.54-.1-.18-.62-1.49-.86-2.03-.24-.54-.48-.46-.62-.48-.1-.01-.22-.01-.34-.01-.12 0-.32.04-.49.21-.17.17-.67.65-.67 1.58 0 .93.69 1.83.78 1.95.09.12 1.37 2.1 3.32 2.92 1.95.82 1.95 1.35 2.18 1.47.23.12.38.1.52-.08.15-.18.62-.8.78-1.07.16-.27.3-.46.46-.57.17-.11.33-.1.5.01.17.11 1.05.54 1.25.65.2.11.33.16.48.24.15.08.38.16.43.32s.06.45-.14.89z"/></svg></a>
+            </div>
+            
+            <!-- Contact Info -->
+            <div class="flex space-x-6">
+                <a href="tel:+13174991516" class="hover:text-bf-gold transition duration-200">+1(317) 499-1516</a>
+                <a href="mailto:jsj@blueflagrealty.net" class="hover:text-bf-gold transition duration-200">jsj@blueflagrealty.net</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="sticky top-0 z-50 bg-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <!-- Logo -->
+                <a href="#" class="text-2xl font-extrabold text-bf-blue tracking-wider">BLUE FLAG REALTY INC.</a>
+
+                <!-- Primary Navigation (Desktop) -->
+                <div class="hidden md:flex md:items-center md:space-x-1">
+                    <a href="#" class="nav-item">Home</a>
+                    <div class="group relative">
+                        <button class="nav-item flex items-center">Buy <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                        <div class="dropdown-menu absolute right-0 mt-0 w-48 bg-white border border-gray-100 rounded-md shadow-lg z-20 origin-top-right">
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-bf-blue hover:text-white">All Listings</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-bf-blue hover:text-white">Featured Listings</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-bf-blue hover:text-white">Sold Listings</a>
+                        </div>
+                    </div>
+                    <div class="group relative">
+                        <button class="nav-item flex items-center">Sell <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                        <div class="dropdown-menu absolute right-0 mt-0 w-48 bg-white border border-gray-100 rounded-md shadow-lg z-20 origin-top-right">
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-bf-blue hover:text-white">Home Valuation</a>
+                        </div>
+                    </div>
+                    <div class="group relative">
+                        <button class="nav-item flex items-center">About <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
+                        <div class="dropdown-menu absolute right-0 mt-0 w-48 bg-white border border-gray-100 rounded-md shadow-lg z-20 origin-top-right">
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-bf-blue hover:text-white">About Us</a>
+                            <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-bf-blue hover:text-white">Contact Us</a>
+                        </div>
+                    </div>
+                    <a href="#" class="nav-item">Off Market</a>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <button class="md:hidden p-2 rounded-md text-gray-500 hover:text-bf-blue" id="mobile-menu-btn" aria-expanded="false">
+                    <svg class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </button>
+            </div>
+        </div>
+        <script>
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.add('px-3', 'py-2', 'text-sm', 'font-semibold', 'text-gray-700', 'hover:text-bf-blue', 'transition', 'duration-200', 'rounded-md');
+            });
+        </script>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div class="md:hidden hidden bg-bf-light border-b border-gray-200" id="mobile-menu">
+        <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+            <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-bf-blue hover:text-white">Home</a>
+            <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-bf-blue hover:text-white">Buy</a>
+            <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-bf-blue hover:text-white">Sell</a>
+            <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-bf-blue hover:text-white">About</a>
+            <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-bf-blue hover:text-white">Off Market</a>
+        </div>
+    </div>
+    <script>
+        document.getElementById('mobile-menu-btn').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+    </script>
+
+
+    <main>
+        <!-- Hero Section -->
+        <section class="relative h-[60vh] md:h-[70vh] flex items-center justify-center text-center overflow-hidden shadow-xl">
+            <video autoplay loop muted playsinline class="absolute inset-0 w-full h-full object-cover">
+                <source src="https://cdn.chime.me/doc/fs/upload/20241018/17/38003a9c-8a13-494f-b2b7-c742dfd2b929/V20.mp4" type="video/mp4">
+            </video>
+            <div class="absolute inset-0 bg-bf-blue opacity-50"></div>
+            <div class="relative z-10 p-6 max-w-4xl">
+                <h1 class="text-4xl sm:text-6xl font-extrabold text-white leading-tight mb-4 tracking-tight">We are here to serve all of your real estate needs!</h1>
+                <p class="text-xl text-bf-light italic">Start your search for luxury properties now.</p>
+            </div>
+        </section>
+
+        <!-- Featured Listings Section -->
+        <section class="py-16 bg-bf-light">
+            <div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8"> 
+                <div class="px-4 sm:px-0 lg:px-0 mb-10 text-center sm:text-left">
+                    <h2 class="text-3xl font-bold text-bf-blue mb-2 border-b-2 border-bf-gold pb-2 inline-block">FEATURED LISTINGS</h2>
+                    <p class="text-xl text-gray-600">Representing a Bespoke Collection of Austin's Finest Properties.</p>
+                </div>
+
+                <div class="swiper featured-swiper relative pb-12 overflow-visible"> 
+                    <div class="swiper-wrapper items-stretch">
+                        <!-- Card 1 -->
+                        <div class="swiper-slide">
+                            <div class="bg-white rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col">
+                                <img src="https://placehold.co/600x400/294e77/ffffff?text=Luxury+Listing+1" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow">
+                                    <h3 class="text-2xl font-bold text-gray-900 mb-1">$1,850,000</h3>
+                                    <p class="text-gray-500 text-sm">4 Bed | 3.5 Bath | 3,200 Sq Ft</p>
+                                    <p class="mt-3 text-gray-700">123 Riverfront Dr, Indianapolis, IN 46202</p>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="mt-4 inline-block text-bf-blue hover:text-bf-gold font-semibold transition duration-200">View Details &rarr;</a>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Card 2 -->
+                        <div class="swiper-slide">
+                            <div class="bg-white rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col">
+                                <img src="https://placehold.co/600x400/294e77/ffffff?text=Luxury+Listing+2" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow">
+                                    <h3 class="text-2xl font-bold text-gray-900 mb-1">$985,000</h3>
+                                    <p class="text-gray-500 text-sm">3 Bed | 2 Bath | 2,100 Sq Ft</p>
+                                    <p class="mt-3 text-gray-700">45 Elm Street, Carmel, IN 46032</p>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="mt-4 inline-block text-bf-blue hover:text-bf-gold font-semibold transition duration-200">View Details &rarr;</a>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Card 3 -->
+                        <div class="swiper-slide">
+                            <div class="bg-white rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col">
+                                <img src="https://placehold.co/600x400/294e77/ffffff?text=Luxury+Listing+3" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow">
+                                    <h3 class="text-2xl font-bold text-gray-900 mb-1">$3,500,000</h3>
+                                    <p class="text-gray-500 text-sm">5 Bed | 4 Bath | 5,500 Sq Ft</p>
+                                    <p class="mt-3 text-gray-700">789 Lakeview Manor, Zionsville, IN 46077</p>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="mt-4 inline-block text-bf-blue hover:text-bf-gold font-semibold transition duration-200">View Details &rarr;</a>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Card 4 -->
+                        <div class="swiper-slide">
+                            <div class="bg-white rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col">
+                                <img src="https://placehold.co/600x400/294e77/ffffff?text=Luxury+Listing+4" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow">
+                                    <h3 class="text-2xl font-bold text-gray-900 mb-1">$1,200,000</h3>
+                                    <p class="text-gray-500 text-sm">4 Bed | 3 Bath | 2,800 Sq Ft</p>
+                                    <p class="mt-3 text-gray-700">303 High Bluff Way, Austin, TX 78704</p>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="mt-4 inline-block text-bf-blue hover:text-bf-gold font-semibold transition duration-200">View Details &rarr;</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Navigation -->
+                    <div class="swiper-pagination swiper-pagination-featured mt-4"></div>
+                    <div class="swiper-button-prev swiper-button-prev-featured"></div>
+                    <div class="swiper-button-next swiper-button-next-featured"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Off Market Listings Section (Now a Carousel) -->
+        <section class="py-16 bg-white border-t border-gray-100">
+            <div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
+                <div class="px-4 sm:px-0 lg:px-0 mb-10 text-center sm:text-left">
+                    <h2 class="text-3xl font-bold text-bf-blue mb-2 border-b-2 border-bf-gold pb-2 inline-block">OFF MARKET LISTINGS</h2>
+                    <p class="text-xl text-gray-600">Exclusive opportunities available through Blue Flag Realty.</p>
+                </div>
+
+                <!-- Swiper Container for Off Market -->
+                <div class="swiper off-market-swiper relative pb-12 overflow-visible"> 
+                    <div class="swiper-wrapper items-stretch">
+                        
+                        <!-- Slide 1: Supermarket (From your data) -->
+                        <div class="swiper-slide">
+                            <div class="bg-bf-light rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col border border-gray-100">
+                                <img src="https://placehold.co/800x600/294e77/ffffff?text=Supermarket+For+Sale" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow flex flex-col">
+                                    <div class="mb-4">
+                                        <h3 class="text-2xl font-extrabold text-bf-blue mb-1">Supermarket For Sale</h3>
+                                        <p class="text-lg text-gray-600">Greenwood, IN</p>
+                                    </div>
+                                    <p class="text-gray-700 text-sm leading-relaxed mb-4 border-l-4 border-bf-gold pl-3 italic flex-grow">
+                                        Fully renovated 9,300 sq ft supermarket with REAL ESTATE included. Turnkey business opportunity.
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-2 text-xs text-gray-800 font-semibold mb-6 bg-white p-3 rounded">
+                                        <p>📍 Size: 9,300 sq ft</p>
+                                        <p>🚩 Lot: 0.67 acre</p>
+                                        <p>📍 Full Reno</p>
+                                        <p>🚩 Prime Loc.</p>
+                                    </div>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="block text-center py-2 px-4 text-white bg-bf-gold hover:bg-bf-blue transition duration-300 rounded font-semibold shadow">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Slide 2: Commercial Plaza (Placeholder) -->
+                        <div class="swiper-slide">
+                            <div class="bg-bf-light rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col border border-gray-100">
+                                <img src="https://placehold.co/800x600/4c1d95/ffffff?text=Commercial+Plaza" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow flex flex-col">
+                                    <div class="mb-4">
+                                        <h3 class="text-2xl font-extrabold text-bf-blue mb-1">Retail Plaza</h3>
+                                        <p class="text-lg text-gray-600">Indianapolis, IN</p>
+                                    </div>
+                                    <p class="text-gray-700 text-sm leading-relaxed mb-4 border-l-4 border-bf-gold pl-3 italic flex-grow">
+                                        High-traffic corner location with 5 established tenants and room for expansion. 
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-2 text-xs text-gray-800 font-semibold mb-6 bg-white p-3 rounded">
+                                        <p>📍 Size: 12,000 sq ft</p>
+                                        <p>🚩 Cap Rate: 7.5%</p>
+                                        <p>📍 100% Occupied</p>
+                                        <p>🚩 Heavy Traffic</p>
+                                    </div>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="block text-center py-2 px-4 text-white bg-bf-gold hover:bg-bf-blue transition duration-300 rounded font-semibold shadow">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Slide 3: Development Land (Placeholder) -->
+                        <div class="swiper-slide">
+                            <div class="bg-bf-light rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col border border-gray-100">
+                                <img src="https://placehold.co/800x600/15803d/ffffff?text=Development+Land" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow flex flex-col">
+                                    <div class="mb-4">
+                                        <h3 class="text-2xl font-extrabold text-bf-blue mb-1">Prime Development Land</h3>
+                                        <p class="text-lg text-gray-600">Zionsville, IN</p>
+                                    </div>
+                                    <p class="text-gray-700 text-sm leading-relaxed mb-4 border-l-4 border-bf-gold pl-3 italic flex-grow">
+                                        50+ acres zoned for mixed-use development. Utilities available at street.
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-2 text-xs text-gray-800 font-semibold mb-6 bg-white p-3 rounded">
+                                        <p>📍 Size: 52 Acres</p>
+                                        <p>🚩 Mixed Use</p>
+                                        <p>📍 Utilities Ready</p>
+                                        <p>🚩 Rapid Growth Area</p>
+                                    </div>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="block text-center py-2 px-4 text-white bg-bf-gold hover:bg-bf-blue transition duration-300 rounded font-semibold shadow">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Slide 4: Industrial Warehouse (Placeholder) -->
+                        <div class="swiper-slide">
+                            <div class="bg-bf-light rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col border border-gray-100">
+                                <img src="https://placehold.co/800x600/b91c1c/ffffff?text=Industrial+Warehouse" class="w-full h-64 object-cover">
+                                <div class="p-6 flex-grow flex flex-col">
+                                    <div class="mb-4">
+                                        <h3 class="text-2xl font-extrabold text-bf-blue mb-1">Industrial Flex Space</h3>
+                                        <p class="text-lg text-gray-600">Fishers, IN</p>
+                                    </div>
+                                    <p class="text-gray-700 text-sm leading-relaxed mb-4 border-l-4 border-bf-gold pl-3 italic flex-grow">
+                                        Modern warehouse with office build-out. 3 loading docks and high ceilings.
+                                    </p>
+                                    <div class="grid grid-cols-2 gap-2 text-xs text-gray-800 font-semibold mb-6 bg-white p-3 rounded">
+                                        <p>📍 Size: 25,000 sq ft</p>
+                                        <p>🚩 3 Docks</p>
+                                        <p>📍 24' Clear Height</p>
+                                        <p>🚩 Near Highway</p>
+                                    </div>
+                                    <!-- UPDATED: Linking to the listing detail page -->
+                                    <a :href="LISTING_DETAIL_URL" class="block text-center py-2 px-4 text-white bg-bf-gold hover:bg-bf-blue transition duration-300 rounded font-semibold shadow">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Add Pagination (dots) -->
+                    <div class="swiper-pagination swiper-pagination-off-market mt-4"></div>
+
+                    <!-- Add Navigation (prev/next buttons) -->
+                    <div class="swiper-button-prev swiper-button-prev-off-market"></div>
+                    <div class="swiper-button-next swiper-button-next-off-market"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Work With Us / CTA Section -->
+        <section class="py-20 bg-bf-blue text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-4xl font-extrabold mb-4">WORK WITH US</h2>
+                <p class="text-xl max-w-3xl mx-auto mb-8">Reach out to an expert real estate agent today. Dive into the world of luxury real estate with guidance from our devoted team.</p>
+                <a href="#contact" class="inline-block py-4 px-10 text-lg font-bold text-bf-blue bg-white rounded-full hover:bg-bf-light transition duration-300 shadow-2xl uppercase tracking-wider">CONTACT US</a>
+            </div>
+        </section>
+
+        <!-- Agent and Contact Section -->
+        <section class="py-16 bg-white" id="contact">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="text-3xl font-bold text-bf-blue mb-10">OUR AGENTS</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+                    <div class="lg:col-span-2 bg-bf-light p-8 rounded-xl shadow-lg">
+                        <div class="flex items-start space-x-6 mb-6">
+                            <img src="https://placehold.co/120x120/bfbfbf/555555?text=JS" class="rounded-full w-24 h-24 object-cover border-4 border-white shadow-md">
+                            <div>
+                                <h3 class="text-3xl font-bold text-bf-blue">Jasvir Singh</h3>
+                                <p class="text-lg text-gray-700 font-medium">CEO/ Managing Broker | License ID: RB22001424</p>
+                                <p class="text-md text-gray-500">Primary Contact</p>
+                            </div>
+                        </div>
+                        <p class="text-gray-700 leading-relaxed mb-6 border-l-4 border-bf-gold pl-4 italic">
+                            Jasvir Singh is a visionary real estate leader who has built a thriving brokerage from the ground up.
+                        </p>
+                        <div class="space-y-2 text-gray-700">
+                            <p><span class="font-semibold">Phone:</span> <a href="tel:+13174991516" class="hover:text-bf-blue">+1(317) 499-1516</a></p>
+                            <p><span class="font-semibold">Email:</span> <a href="mailto:jsj@blueflagrealty.net" class="hover:text-bf-blue">jsj@blueflagrealty.net</a></p>
+                            <p><span class="font-semibold">Office:</span> 755 E Main St, Greenwood , Indiana, 46143, USA</p>
+                        </div>
+                    </div>
+                    <div class="bg-bf-light p-8 rounded-xl shadow-lg">
+                         <div class="flex items-start space-x-4 mb-6">
+                            <img src="https://placehold.co/80x80/bfbfbf/555555?text=AH" class="rounded-full w-20 h-20 object-cover border-2 border-white shadow-md">
+                            <div>
+                                <h3 class="text-xl font-bold text-bf-blue">Aman Hundal</h3>
+                                <p class="text-sm text-gray-500">Broker Associate</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2 text-gray-700 mt-4">
+                            <p><span class="font-semibold">Phone:</span> <a href="tel:+18594047234" class="hover:text-bf-blue">+1(859) 404-7234</a></p>
+                            <p><span class="font-semibold">Email:</span> <a href="mailto:ahundal@blueflagrealty.net" class="hover:text-bf-blue">ahundal@blueflagrealty.net</a></p>
+                        </div>
+                        <div class="mt-8">
+                            <h4 class="text-xl font-semibold text-bf-blue mb-4">Send us a Message</h4>
+                            <form class="space-y-4">
+                                <input type="text" placeholder="Your Name" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-bf-blue">
+                                <input type="email" placeholder="Your Email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-bf-blue">
+                                <button type="submit" class="w-full py-3 bg-bf-blue text-white font-bold rounded-lg hover:bg-bf-gold transition duration-300 shadow-md">Submit Inquiry</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-gray-900 text-bf-light py-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8 border-b border-gray-700 pb-8 mb-8">
+                <div>
+                    <h3 class="text-2xl font-extrabold text-bf-gold mb-4">Blue Flag Realty Inc.</h3>
+                    <address class="not-italic space-y-2 text-gray-400">
+                        <p>755 E Main St, Greenwood, Indiana 46143</p>
+                        <p>Office: <a href="tel:+13174991516" class="hover:text-white">+1(317) 499-1516</a></p>
+                        <p>Email: <a href="mailto:office@blueflagindy.com" class="hover:text-white">office@blueflagindy.com</a></p>
+                    </address>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold mb-4">Navigation</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Home</a></li>
+                        <li><a href="#" class="hover:text-white">Buy Listings</a></li>
+                        <li><a href="#" class="hover:text-white">Sell & Valuation</a></li>
+                        <li><a href="#" class="hover:text-white">About Us</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold mb-4">Resources</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Property Listings</a></li>
+                        <li><a href="#" class="hover:text-white">Sitemap</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-xl font-semibold mb-4">Legal</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-white">Terms of Service</a></li>
+                        <li><a href="#" class="hover:text-white">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="text-xs text-gray-500 space-y-3">
+                <p><strong>IDX Disclaimer:</strong> IDX information is provided exclusively for consumers' personal, non-commercial use.</p>
+                <p>Powered by Lofty Inc. Copyright 2025. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Helper function to init standardized swipers
+            function initSwiper(selector, nextBtn, prevBtn, paginationEl) {
+                new Swiper(selector, {
+                    loop: true,
+                    spaceBetween: 24,
+                    slidesPerView: 'auto', // CSS controlled width (85% mobile, 500px desktop)
+                    centeredSlides: true,
+                    autoplay: {
+                        delay: 5000,
+                        disableOnInteraction: false,
+                    },
+                    pagination: {
+                        el: paginationEl,
+                        clickable: true,
+                    },
+                    navigation: {
+                        nextEl: nextBtn,
+                        prevEl: prevBtn,
+                    },
+                    keyboard: {
+                        enabled: true,
+                    },
+                    effect: 'slide',
+                });
+            }
+
+            // Init Featured Listings
+            initSwiper('.featured-swiper', '.swiper-button-next-featured', '.swiper-button-prev-featured', '.swiper-pagination-featured');
+
+            // Init Off Market Listings
+            initSwiper('.off-market-swiper', '.swiper-button-next-off-market', '.swiper-button-prev-off-market', '.swiper-pagination-off-market');
+        });
+    </script>
+</body>
+</html>

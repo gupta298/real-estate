@@ -1,0 +1,29 @@
+{
+  "name": "real-estate-server",
+  "version": "1.0.0",
+  "description": "Backend API for real estate website with MLS integration",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "init-db": "node scripts/init-db.js",
+    "sync-mls": "node scripts/sync-mls.js",
+    "seed": "node scripts/seed-sample-data.js",
+    "seed-agents": "node scripts/seed-agents.js",
+    "seed-off-market": "node scripts/seed-off-market-deals.js",
+    "create-admin": "node scripts/create-admin.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "node-cron": "^3.0.3",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

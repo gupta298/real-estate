@@ -1,0 +1,24 @@
+{
+  "name": "real-estate-website",
+  "version": "1.0.0",
+  "description": "Modern real estate website with MLS integration",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install",
+    "init-db": "cd server && npm run init-db",
+    "seed": "cd server && npm run seed",
+    "seed-agents": "cd server && npm run seed-agents",
+    "seed-off-market": "cd server && npm run seed-off-market",
+    "create-admin": "cd server && npm run create-admin"
+  },
+  "keywords": ["real-estate", "property", "listings", "mls"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

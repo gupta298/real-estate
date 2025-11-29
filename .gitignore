@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment variables
+.env
+.env.local
+.env*.local
+
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+server/database/*.db*
+
+# Next.js
+client/.next/
+client/out/
+client/.vercel
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+dist/
+build/
+dist/
+
+# Uploads
+server/uploads/*
+!server/uploads/.gitkeep
+
