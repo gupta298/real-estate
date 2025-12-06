@@ -18,9 +18,17 @@ router.get('/', (req, res) => {
     console.log('Warning: HTML request to API endpoint');
   }
   
-  // Always force JSON content type for API endpoints
+  // Always force JSON content type for API endpoints and add CORS headers
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Add explicit CORS headers for blog subdomain
+  const origin = req.get('origin');
+  if (origin && (origin.includes('blog.blueflagindy.com') || origin.includes('onrender.com'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
+  }
   
   const query = `
     SELECT b.*,

@@ -20,10 +20,50 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true
-}));
+// Define CORS options for reuse
+const corsOptions = {
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if(!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      process.env.CORS_ORIGIN || 'http://localhost:3000',
+      'https://blueflagindy.com',
+      'https://www.blueflagindy.com',
+      'https://blog.blueflagindy.com',
+      'https://offmarket.blueflagindy.com',
+      // Allow any Render.com preview domains
+      /.*\.onrender\.com$/
+    ];
+    
+    // Check if the origin is allowed
+    const isAllowed = allowedOrigins.some(allowedOrigin => {
+      if (typeof allowedOrigin === 'string') {
+        return origin === allowedOrigin;
+      } else if (allowedOrigin instanceof RegExp) {
+        return allowedOrigin.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.log(`CORS blocked request from: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-API-Request']
+};
+
+// Apply CORS to all requests
+app.use(cors(corsOptions));
+
+// Handle OPTIONS requests explicitly for all API routes
+app.options('*', cors(corsOptions));
 
 // We'll configure static file serving after middleware setup
 
@@ -324,7 +364,7 @@ app.use('/api/seller-inquiries', sellerInquiryRoutes);
 app.use('/api/agents', agentRoutes);
 
 // Blogs API needs special handling to avoid conflicts with the /blogs route
-app.use('/api/blogs', (req, res, next) => {
+app.use('/api/blogs', cors(corsOptions), (req, res, next) => {
   console.log(`🔧 [${new Date().toISOString()}] API blogs request: ${req.path} from ${req.headers['host'] || 'unknown'}`);
   
   // Ensure we always respond with JSON, not HTML
@@ -344,6 +384,9 @@ app.use('/admin', adminRoutes);
 app.use('/off-market', offMarketRoutes);
 app.use('/seller-inquiries', sellerInquiryRoutes);
 app.use('/agents', agentRoutes);
+
+// Handle OPTIONS requests for /blogs endpoint explicitly
+app.options('/blogs*', cors(corsOptions));
 
 // Special handling for /blogs route to distinguish API calls from page requests
 app.use('/blogs', (req, res, next) => {
