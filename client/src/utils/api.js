@@ -886,6 +886,11 @@ export const deleteBlog = async (id) => {
 // File Upload API
 export const uploadFile = async (file, token = null) => {
   try {
+    // If token is not provided, try to get it from localStorage
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('token');
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     
@@ -897,6 +902,7 @@ export const uploadFile = async (file, token = null) => {
         // Don't set Content-Type - let browser set it with boundary
       },
     });
+    console.log('[API] File upload successful:', response.status);
     return response.data;
   } catch (error) {
     console.error('[API] Error uploading file:', error);
@@ -906,6 +912,11 @@ export const uploadFile = async (file, token = null) => {
 
 export const uploadFiles = async (files, token = null) => {
   try {
+    // If token is not provided, try to get it from localStorage
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem('token');
+    }
+    
     const formData = new FormData();
     files.forEach(file => formData.append('files', file));
     
@@ -917,6 +928,7 @@ export const uploadFiles = async (files, token = null) => {
         // Don't set Content-Type - let browser set it with boundary
       },
     });
+    console.log('[API] Multiple files upload successful:', response.status);
     return response.data;
   } catch (error) {
     console.error('[API] Error uploading files:', error);
