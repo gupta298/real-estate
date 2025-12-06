@@ -351,7 +351,7 @@ export default function OffMarketSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Set up slideshow once data is loaded
-    if (!state.loading && filteredDeals.length > 0) {
+    if (!state.loading && Array.isArray(state.allDeals) && state.allDeals.length > 0) {
       setupSlideshow();
     }
     
@@ -368,7 +368,7 @@ export default function OffMarketSimplePage() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
-  }, [state.loading, filteredDeals.length]);
+  }, [state.loading, state.allDeals]);
   
   // Infinite scroll observer effect - client-side only
   useEffect(() => {
@@ -376,7 +376,8 @@ export default function OffMarketSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Don't set up observer if all deals are already displayed or nothing to display
-    if (state.displayCount >= filteredDeals.length || filteredDeals.length === 0) return;
+    // We're avoiding reference to filteredDeals here to prevent variable initialization issues
+    if (!Array.isArray(state.allDeals) || state.allDeals.length === 0) return;
     
     // Create observer only if IntersectionObserver is available (client-side)
     if (!('IntersectionObserver' in window)) return;
@@ -384,11 +385,11 @@ export default function OffMarketSimplePage() {
     const observer = new IntersectionObserver(
       (entries) => {
         const firstEntry = entries[0];
-        if (firstEntry?.isIntersecting && state.displayCount < filteredDeals.length) {
+        if (firstEntry?.isIntersecting) {
           // Load 12 more deals
           setState(prev => ({
             ...prev,
-            displayCount: Math.min(prev.displayCount + 12, filteredDeals.length)
+            displayCount: prev.displayCount + 12
           }));
         }
       },
@@ -408,7 +409,7 @@ export default function OffMarketSimplePage() {
         observer.unobserve(currentRef);
       }
     };
-  }, [state.displayCount, filteredDeals.length]);
+  }, [state.displayCount, state.allDeals]);
   
   // Get unique property types from all deals using useMemo
   const availablePropertyTypes = useMemo(() => {
@@ -446,38 +447,8 @@ export default function OffMarketSimplePage() {
     return Array.from(statuses).sort();
   }, [state.allDeals]);
 
-  // Filter deals based on selected filters using useMemo
-  const filteredDeals = useMemo(() => {
-    if (!Array.isArray(state.allDeals)) return [];
-    return state.allDeals.filter(deal => {
-      if (!deal) return false;
-      
-      // Property type filter
-      if (state.selectedPropertyTypes.length > 0 && 
-          !state.selectedPropertyTypes.includes(deal.propertyType)) {
-        return false;
-      }
-      
-      // Sub-type filter
-      if (state.selectedPropertySubTypes.length > 0 && 
-          !state.selectedPropertySubTypes.includes(deal.propertySubType)) {
-        return false;
-      }
-      
-      // Status filter
-      if (state.selectedStatuses.length > 0 && 
-          !state.selectedStatuses.includes(deal.status)) {
-        return false;
-      }
-      
-      return true;
-    });
-  }, [state.allDeals, state.selectedPropertyTypes, state.selectedPropertySubTypes, state.selectedStatuses]);
-
-  // Get deals to display (paginated)
-  const displayedDeals = useMemo(() => {
-    return filteredDeals.slice(0, state.displayCount);
-  }, [filteredDeals, state.displayCount]);
+  // Moving filtering calculation into the render phase instead of using useMemo
+  // This ensures we don't have any issues with variable initialization order
   
   // Handle retry
   function handleRetry() {
@@ -508,7 +479,8 @@ export default function OffMarketSimplePage() {
       });
   }
   
-  // Destructure state for easier access
+  // Destructure state for easier access - this ensures we have direct access to state properties
+  // without any issues with variable hoisting or initialization order
   const {
     deals,
     allDeals,
@@ -570,6 +542,38 @@ export default function OffMarketSimplePage() {
     }
   `;
   
+  // Calculate filtered deals directly in the render function
+  // This avoids any issues with variable initialization and timing
+  const filteredDeals = (() => {
+    if (!Array.isArray(allDeals)) return [];
+    return allDeals.filter(deal => {
+      if (!deal) return false;
+      
+      // Property type filter
+      if (selectedPropertyTypes.length > 0 && 
+          !selectedPropertyTypes.includes(deal.propertyType)) {
+        return false;
+      }
+      
+      // Sub-type filter
+      if (selectedPropertySubTypes.length > 0 && 
+          !selectedPropertySubTypes.includes(deal.propertySubType)) {
+        return false;
+      }
+      
+      // Status filter
+      if (selectedStatuses.length > 0 && 
+          !selectedStatuses.includes(deal.status)) {
+        return false;
+      }
+      
+      return true;
+    });
+  })();
+
+  // Get deals to display (paginated)
+  const displayedDeals = filteredDeals.slice(0, displayCount);
+  
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       {/* Add custom CSS */}
@@ -607,7 +611,7 @@ export default function OffMarketSimplePage() {
               {selectedPropertySubTypes.length > 0 ? `Sub-Types (${selectedPropertySubTypes.join(', ')})` : 'No sub-type filters'} | 
               {selectedStatuses.length > 0 ? `Statuses (${selectedStatuses.join(', ')})` : 'No status filters'}
             </p>
-            <p>Deals: {allDeals.length} total, {filteredDeals.length} filtered, {displayedDeals.length} displayed</p>
+            <p>Deals: {allDeals.length} total, {filteredDeals?.length || 0} filtered, {displayedDeals?.length || 0} displayed</p>
           </div>
         )}
         
@@ -785,7 +789,7 @@ export default function OffMarketSimplePage() {
               Retry
             </button>
           </div>
-        ) : filteredDeals.length > 0 ? (
+        ) : (filteredDeals?.length || 0) > 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedDeals.map(deal => {
@@ -951,7 +955,7 @@ export default function OffMarketSimplePage() {
             </div>
 
             {/* Infinite scroll trigger */}
-            {displayCount < filteredDeals.length && (
+            {displayCount < (filteredDeals?.length || 0) && (
               <div ref={loadMoreRef} className="text-center py-8">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-bf-blue"></div>
                 <p className="text-gray-500 text-sm mt-2">Loading more deals...</p>
@@ -959,9 +963,9 @@ export default function OffMarketSimplePage() {
             )}
 
             {/* Show count if all deals are loaded */}
-            {displayCount >= filteredDeals.length && filteredDeals.length > 0 && (
+            {displayCount >= (filteredDeals?.length || 0) && (filteredDeals?.length || 0) > 0 && (
               <div className="text-center py-8 text-gray-500 text-sm">
-                Showing all {filteredDeals.length} deal{filteredDeals.length !== 1 ? 's' : ''}
+                Showing all {filteredDeals?.length || 0} deal{(filteredDeals?.length || 0) !== 1 ? 's' : ''}
               </div>
             )}
           </>
