@@ -61,21 +61,27 @@ export const updateApiUrl = (newUrl) => {
   return _apiUrl;
 };
 
-// Function to force use of specific base URL (for testing/fallbacks)
+// Function to force use of appropriate base URL based on environment
 export const forceBaseUrl = () => {
   // Try to detect current base domain
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
     
-    // Force use of the hostname that's actually working
-    if (hostname.includes('blueflagindy.com')) {
-      // For any blueflagindy subdomain, use the main domain
-      updateApiUrl(`${protocol}//blueflagindy.com/api`);
+    // For subdomains, use the current subdomain for API calls
+    if (hostname.includes('.blueflagindy.com')) {
+      console.log(`[API Config] Using subdomain for API: ${hostname}`);
+      updateApiUrl(`${protocol}//${hostname}`);
+      return _apiUrl;
+    }
+    
+    // For main domain, we can't use /api since it's on a different server
+    if (hostname === 'blueflagindy.com') {
+      console.log('[API Config] Using main domain without /api');
+      updateApiUrl(`${protocol}//${hostname}`);
+      return _apiUrl;
     }
   }
-  
-  return _apiUrl;
 };
 
 // Log the API URL for debugging

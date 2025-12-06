@@ -40,11 +40,10 @@ export default function SubdomainOffMarket() {
       setLoading(true);
       setLoadError(null);
       
-      // Try using the fallback URL mechanism if requested
+      // Log attempt information
       if (tryFallback && loadAttempts > 0) {
-        console.log('SubdomainOffMarket: Trying fallback API URL...');
-        const newUrl = forceBaseUrl();
-        console.log(`SubdomainOffMarket: Now using API URL: ${newUrl}`);
+        console.log('SubdomainOffMarket: Retry attempt with current configuration');
+        // We're no longer forcing API URL changes here
       }
       
       const data = await getOffMarketDeals({});

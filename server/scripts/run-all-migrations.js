@@ -62,7 +62,23 @@ let successCount = 0;
 let skipCount = 0;
 let errorCount = 0;
 
-async function runMigrations() {
+// Add seeding operations to run after migrations
+const seedOperations = [
+  {
+    name: 'Off-Market Deals',
+    script: 'seed-off-market-deals.js'
+  },
+  {
+    name: 'Blog Posts',
+    script: 'seed-blogs.js'
+  },
+  {
+    name: 'Admin User',
+    script: 'create-admin.js'
+  }
+];
+
+async function runOperations() {
   for (let i = 0; i < migrations.length; i++) {
     const migration = migrations[i];
     
@@ -104,28 +120,72 @@ async function runMigrations() {
     }
   }
 
-  console.log(`\n✨ Migration summary:`);
-  console.log(`   ✅ Completed: ${successCount}`);
-  console.log(`   ⏭️  Skipped: ${skipCount}`);
-  if (errorCount > 0) {
-    console.log(`   ❌ Errors: ${errorCount}`);
+  // Reset counters for seed operations
+  const migrationResults = { 
+    successCount, 
+    skipCount, 
+    errorCount, 
+    total: migrations.length 
+  };
+  
+  // Reset counters for seed operations
+  successCount = 0;
+  skipCount = 0;
+  errorCount = 0;
+  
+  // Run seed operations after migrations
+  console.log('\n🌱 Running seeding operations...');
+  
+  for (let i = 0; i < seedOperations.length; i++) {
+    const operation = seedOperations[i];
+    
+    try {
+      console.log(`[${i + 1}/${seedOperations.length}] 🌱 Running ${operation.name} seeding...`);
+      const scriptPath = path.join(__dirname, operation.script);
+      execSync(`node "${scriptPath}"`, { 
+        stdio: 'inherit',
+        cwd: __dirname 
+      });
+      successCount++;
+      console.log(`✅ ${operation.name} seeding completed\n`);
+    } catch (error) {
+      console.error(`❌ ${operation.name} seeding failed: ${error.message}\n`);
+      errorCount++;
+    }
   }
-  console.log(`   📊 Total: ${migrations.length}\n`);
+  
+  // Print summary for both migrations and seeding
+  console.log(`\n✨ Operation summary:`);
+  console.log(`   📊 Migrations:`);
+  console.log(`      ✅ Completed: ${migrationResults.successCount}`);
+  console.log(`      ⏭️  Skipped: ${migrationResults.skipCount}`);
+  if (migrationResults.errorCount > 0) {
+    console.log(`      ❌ Errors: ${migrationResults.errorCount}`);
+  }
+  console.log(`      📊 Total: ${migrationResults.total}`);
+  
+  console.log(`   🌱 Seeding:`);
+  console.log(`      ✅ Completed: ${successCount}`);
+  if (errorCount > 0) {
+    console.log(`      ❌ Errors: ${errorCount}`);
+  }
+  console.log(`      📊 Total: ${seedOperations.length}\n`);
 
   db.close((err) => {
     if (err) {
       console.error('Error closing database:', err);
     }
 
-    if (errorCount > 0) {
-      console.log('⚠️  Some migrations had errors. Please check the output above.');
+    const totalErrors = migrationResults.errorCount + errorCount;
+    if (totalErrors > 0) {
+      console.log('⚠️  Some operations had errors. Please check the output above.');
       process.exit(1);
     } else {
-      console.log('✅ All migrations completed successfully!');
+      console.log('✅ All migrations and seeding operations completed successfully!');
       process.exit(0);
     }
   });
 }
 
-runMigrations();
+runOperations();
 

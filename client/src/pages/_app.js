@@ -20,12 +20,12 @@ export default function App({ Component, pageProps }) {
     // Detect if we're in an iframe
     setIsInIframe(window.self !== window.top);
     
-    // Initialize API for subdomain
+    // Initialize API (only log the detection, don't force URL change)
     if (typeof window !== 'undefined' && 
         (window.location.hostname.includes('.blueflagindy.com') || 
          window.location.hostname === 'blueflagindy.com')) {
-      console.log('[App] Detected blueflagindy.com domain, initializing API...');
-      forceBaseUrl();
+      console.log('[App] Detected blueflagindy.com domain');
+      // Don't call forceBaseUrl() here, let the initial URL detection work
     }
     
     // Send height updates to parent if in iframe
@@ -70,13 +70,13 @@ export default function App({ Component, pageProps }) {
     useEffect(() => {
       if (typeof window !== 'undefined') {
         console.log(`[App] Running in ${isOffmarketSubdomain ? 'offmarket' : 'blog'} subdomain mode`);
-        
-        // Force correct API URL for subdomain
-        forceBaseUrl();
-        
+                
         // Add debugging info to console
         console.log('[App] Current URL:', window.location.href);
         console.log('[App] Current pathname:', router.pathname);
+        
+        // We're intentionally NOT calling forceBaseUrl() to avoid overriding
+        // the initial API URL configuration
       }
     }, []);
     
