@@ -20,7 +20,7 @@ npm run production:deploy
 
 1. **Build Command (`npm run production:build`)**
    - Checks Node.js and npm versions
-   - Installs all dependencies for both server and client
+   - Installs all dependencies for both server and client using `npm install`
    - Builds the Next.js app as static files
    - Prepares the server for production
 
@@ -67,3 +67,21 @@ If you encounter issues during deployment:
 4. Confirm that the environment variables are set correctly
 
 For database-specific issues, you can SSH into your Render instance and check the database file in the `/server/database/` directory.
+
+## Common Deployment Issues and Solutions
+
+### Issue: `npm ci` fails with missing package-lock.json
+
+We've updated the scripts to use `npm install` instead of `npm ci` to avoid this issue. If you're manually modifying the scripts, make sure to use `npm install` unless you've committed package-lock.json files to your repository.
+
+### Issue: Node.js version incompatibility
+
+Render automatically detects the Node.js version from your package.json. Make sure the `engines` field in your package.json is correctly set to `"node": ">=18.17.0"`.
+
+### Issue: Static files not found
+
+If the frontend isn't showing up, check that the Next.js build was successful and that the static files were generated in the expected location (`client/out` directory). You can SSH into your Render instance to verify this.
+
+### Issue: Database initialization failed
+
+Make sure your Render service has enough disk space for the SQLite database and that the database directory is writable. You can check the logs for any specific errors related to database initialization.

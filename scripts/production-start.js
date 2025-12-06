@@ -28,7 +28,7 @@ function print(color, message) {
 }
 
 // Execute a command and return its output
-function execute(command, cwd = process.cwd()) {
+function execute(command, cwd = process.cwd(), exitOnError = true) {
   try {
     print('blue', `Executing: ${command}`);
     const output = execSync(command, { 
@@ -40,7 +40,13 @@ function execute(command, cwd = process.cwd()) {
   } catch (error) {
     print('red', `Error executing command: ${command}`);
     print('red', error.toString());
-    process.exit(1);
+    if (exitOnError) {
+      print('red', 'Exiting due to command error. Set exitOnError=false to continue despite errors.');
+      process.exit(1);
+    } else {
+      print('yellow', 'Continuing despite command error (exitOnError=false).');
+      return null;
+    }
   }
 }
 
@@ -87,20 +93,20 @@ async function startProduction() {
   
   // Step 2: Initialize database
   print('bright', '🗄️ Initializing database...');
-  try {
-    execute('npm run init-db', path.join(projectRoot, 'server'));
+  const dbResult = execute('npm run init-db', path.join(projectRoot, 'server'), false);
+  if (dbResult !== null) {
     print('green', '✅ Database initialized!');
-  } catch (error) {
-    print('yellow', '⚠️ Database initialization failed, might already be initialized.');
+  } else {
+    print('yellow', '⚠️ Database initialization had issues, but continuing...');
   }
   
   // Step 3: Run migrations
   print('bright', '🔄 Running database migrations...');
-  try {
-    execute('npm run migrate-all', path.join(projectRoot, 'server'));
+  const migrationResult = execute('npm run migrate-all', path.join(projectRoot, 'server'), false);
+  if (migrationResult !== null) {
     print('green', '✅ Migrations completed!');
-  } catch (error) {
-    print('yellow', '⚠️ Migrations failed, might already be applied.');
+  } else {
+    print('yellow', '⚠️ Migrations had issues, but continuing...');
   }
   
   // Step 4: Start the server
