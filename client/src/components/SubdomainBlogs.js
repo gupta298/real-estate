@@ -195,8 +195,8 @@ export default function SubdomainBlogs() {
               Retry
             </button>
             <div className="mt-4">
-              <a href="/blogs/ultra-simple" className="text-blue-500 underline">
-                View Ultra Simple Version
+              <a href="/blogs/index.simple" className="text-blue-500 underline">
+                View Simple Version
               </a>
             </div>
           </div>
