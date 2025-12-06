@@ -304,16 +304,15 @@ export const deleteSellerInquiry = async (id) => {
 // Blogs API (public)
 export const getBlogs = async (params = {}) => {
   try {
-    // Extract special flag then remove it from params
-    const useExplicitApi = params.useExplicitApi === true;
+    // Always use explicit API path to avoid HTML responses
     const normalParams = { ...params };
     delete normalParams.useExplicitApi;
     
-    // Use explicit API path on retry
-    const endpoint = useExplicitApi ? '/api/blogs' : '/blogs';
+    // IMPORTANT: Always use /api/blogs instead of /blogs to avoid conflicts
+    const endpoint = '/api/blogs';
     
     console.log(`[API] Fetching blogs from: ${API_URL} with params:`, normalParams);
-    console.log(`[API] Using endpoint: ${endpoint} (explicit: ${useExplicitApi})`);
+    console.log(`[API] Using endpoint: ${endpoint} (explicit API path)`);
     
     const response = await api.get(endpoint, { 
       params: normalParams,
@@ -353,7 +352,8 @@ export const getBlogs = async (params = {}) => {
 export const getLatestBlogs = async (limit = 5) => {
   try {
     console.log(`[API] Fetching latest blogs from: ${API_URL} with limit: ${limit}`);
-    const response = await api.get('/blogs/latest', { 
+    // IMPORTANT: Always use /api/blogs instead of /blogs to avoid conflicts
+    const response = await api.get('/api/blogs/latest', { 
       params: { limit },
       headers: {
         'Accept': 'application/json',
@@ -385,7 +385,8 @@ export const getLatestBlogs = async (limit = 5) => {
 export const getBlogById = async (id) => {
   try {
     console.log(`[API] Fetching blog ${id} from: ${API_URL}`);
-    const response = await api.get(`/blogs/${id}`, {
+    // IMPORTANT: Always use /api/blogs instead of /blogs to avoid conflicts
+    const response = await api.get(`/api/blogs/${id}`, {
       headers: {
         'Accept': 'application/json',
         'X-Requested-With': 'XMLHttpRequest'

@@ -316,10 +316,15 @@ app.use('/api/agents', agentRoutes);
 
 // Blogs API needs special handling to avoid conflicts with the /blogs route
 app.use('/api/blogs', (req, res, next) => {
-  console.log(`🔧 [${new Date().toISOString()}] API blogs request: ${req.path}`);
+  console.log(`🔧 [${new Date().toISOString()}] API blogs request: ${req.path} from ${req.headers['host'] || 'unknown'}`);
+  
+  // Ensure we always respond with JSON, not HTML
   res.setHeader('Content-Type', 'application/json');
-  next();
-}, blogRoutes);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Pass to the blog routes handler
+  return blogRoutes(req, res, next);
+});
 
 app.use('/api/upload', uploadRoutes);
 

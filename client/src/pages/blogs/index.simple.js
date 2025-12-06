@@ -20,7 +20,7 @@ export default function BlogsSimplePage() {
       try {
         setLoading(true);
         
-        console.log('Loading blogs...');
+        console.log('Loading blogs via explicit API path...');
         const data = await getBlogs();
         console.log('Blog data received:', data);
         
