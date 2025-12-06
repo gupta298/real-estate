@@ -77,30 +77,25 @@ export default function OffMarketSimplePage() {
     }
   }
 
-  // Ref for storing interval ID safely within React's lifecycle
+  // Ref for storing interval ID safely within React's lifecycle - no longer used, but kept for compatibility
   const slideshowIntervalRef = useRef(null);
   
-  // Set up slideshow for images - only runs in browser context
-  function setupSlideshow() {
+  // Initialize images only - no slideshow on simple page
+  function setupFirstImages() {
     // Skip if not in browser
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
-    // Clear any existing interval
-    if (slideshowIntervalRef.current) {
-      clearInterval(slideshowIntervalRef.current);
-      slideshowIntervalRef.current = null;
-    }
-    
-    // Initialize all slideshows first
+    // Find all image containers
     const slideshows = document.querySelectorAll('.swiper-wrapper');
     if (!slideshows || slideshows.length === 0) return;
     
+    // For each image container, show only the first image
     slideshows.forEach(slideshow => {
       if (!slideshow) return;
       const slides = slideshow.querySelectorAll('.swiper-slide');
       if (!slides || slides.length === 0) return;
       
-      // Make sure the first slide has active class
+      // Make sure only the first slide is visible
       slides.forEach((slide, index) => {
         if (index === 0) {
           slide.classList.add('swiper-slide-active');
@@ -109,80 +104,12 @@ export default function OffMarketSimplePage() {
         }
       });
       
-      // Initialize pagination
+      // Hide pagination since we're not using slideshow
       const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
       if (paginationContainer) {
-        const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
-        if (bullets && bullets.length) {
-          bullets.forEach((b, index) => {
-            if (index === 0) {
-              b.classList.add('swiper-pagination-bullet-active');
-            } else {
-              b.classList.remove('swiper-pagination-bullet-active');
-            }
-          });
-        }
+        paginationContainer.style.display = 'none';
       }
     });
-    
-    // Create slideshow interval - advance slides every 5 seconds
-    const intervalId = setInterval(() => {
-      try {
-        // Don't advance slides if a video is playing
-        const anyVideoPlaying = document.querySelector('video')?.paused === false;
-        if (anyVideoPlaying) return;
-        
-        // Get all slideshow containers
-        const slideshows = document.querySelectorAll('.swiper-wrapper');
-        if (!slideshows || slideshows.length === 0) return;
-        
-        slideshows.forEach(slideshow => {
-          if (!slideshow) return;
-          const slides = slideshow.querySelectorAll('.swiper-slide');
-          if (!slides || slides.length <= 1) return; // Skip if only one slide
-          
-          // Find active slide
-          let activeIndex = -1;
-          slides.forEach((slide, index) => {
-            if (!slide) return;
-            if (slide.classList?.contains('swiper-slide-active')) {
-              activeIndex = index;
-            }
-          });
-          
-          if (activeIndex === -1) activeIndex = 0;
-          
-          // Move to next slide
-          const nextIndex = (activeIndex + 1) % slides.length;
-          slides.forEach(s => {
-            if (s && s.classList) s.classList.remove('swiper-slide-active');
-          });
-          
-          if (slides[nextIndex] && slides[nextIndex].classList) {
-            slides[nextIndex].classList.add('swiper-slide-active');
-          }
-          
-          // Update pagination bullets
-          const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
-          if (paginationContainer) {
-            const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
-            if (bullets && bullets.length) {
-              bullets.forEach(b => {
-                if (b && b.classList) b.classList.remove('swiper-pagination-bullet-active');
-              });
-              if (bullets[nextIndex] && bullets[nextIndex].classList) {
-                bullets[nextIndex].classList.add('swiper-pagination-bullet-active');
-              }
-            }
-          }
-        });
-      } catch (e) {
-        console.error('Error in slideshow:', e);
-      }
-    }, 5000); // Change slide every 5 seconds
-    
-    // Store the interval ID in the ref
-    slideshowIntervalRef.current = intervalId;
   }
   
   // Handle video play/pause when user navigates away
@@ -379,16 +306,16 @@ export default function OffMarketSimplePage() {
     };
   }, []);
   
-  // Setup slideshow and DOM event handlers in a separate useEffect that only runs on client
+  // Setup first images and DOM event handlers in a separate useEffect that only runs on client
   useEffect(() => {
     // Skip if not in browser
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
-    // Set up slideshow once data is loaded
+    // Show first image for each property once data is loaded
     if (!state.loading && Array.isArray(state.allDeals) && state.allDeals.length > 0) {
-      // Use setTimeout to ensure the DOM has been updated with all slides
+      // Use setTimeout to ensure the DOM has been updated with all images
       setTimeout(() => {
-        setupSlideshow();
+        setupFirstImages();
       }, 100);
     }
     
@@ -397,11 +324,6 @@ export default function OffMarketSimplePage() {
     
     // Cleanup function
     return () => {
-      // Clear the interval using the ref
-      if (slideshowIntervalRef.current) {
-        clearInterval(slideshowIntervalRef.current);
-        slideshowIntervalRef.current = null;
-      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
@@ -535,48 +457,21 @@ export default function OffMarketSimplePage() {
     selectedStatuses
   } = state;
   
-  // Custom CSS for deal content
+  // Custom CSS for deal content - simplified to only show first image
   const customStyles = `
     .swiper-pagination {
-      position: absolute;
-      text-align: center;
-      transition: opacity 0.3s;
-      transform: translateZ(0);
-      z-index: 10;
-      bottom: 8px;
-      left: 0;
-      width: 100%;
-    }
-    
-    .swiper-pagination-bullet {
-      width: 8px;
-      height: 8px;
-      display: inline-block;
-      border-radius: 50%;
-      background: #000;
-      opacity: 0.2;
-      margin: 0 4px;
-    }
-    
-    .swiper-pagination-bullet-active {
-      opacity: 1;
-      background: var(--swiper-theme-color,#007aff);
+      display: none; /* Hide pagination since we're not using slideshow */
     }
     
     .swiper-slide {
-      flex-shrink: 0;
+      display: none; /* Hide all slides by default */
       width: 100%;
       height: 100%;
       position: relative;
-      transition-property: transform;
-      display: none;
-      opacity: 1;
-      transition: opacity 0.3s ease;
     }
     
     .swiper-slide-active {
-      display: block;
-      opacity: 1;
+      display: block; /* Only show the active slide */
     }
   `;
   
@@ -878,8 +773,9 @@ export default function OffMarketSimplePage() {
                       {allMedia.length > 0 ? (
                         <div className="swiper swiper-initialized swiper-horizontal h-full w-full">
                           <div className="swiper-wrapper">
-                            {allMedia.map((item, index) => (
-                              <div key={`${deal.id}-media-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`}>
+                            {/* Only show the first item from media array */}
+                            {allMedia.slice(0, 1).map((item, index) => (
+                              <div key={`${deal.id}-media-${index}`} className="swiper-slide swiper-slide-active">
                                 <div className="w-full h-full">
                                   {item.type === 'video' ? (
                                     <div className="w-full h-full flex items-center justify-center bg-black">
@@ -917,13 +813,6 @@ export default function OffMarketSimplePage() {
                               </div>
                             ))}
                           </div>
-                          {allMedia.length > 1 && (
-                            <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal">
-                              {allMedia.map((_, index) => (
-                                <span key={index} className={`swiper-pagination-bullet ${index === 0 ? 'swiper-pagination-bullet-active' : ''}`}></span>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       ) : (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">

@@ -55,20 +55,20 @@ export default function SubdomainOffMarketDetail({ id }) {
   const handleBackClick = () => {
     if (isInIframe) {
       // In iframe, use client-side routing
-      router.push('/off-market');
+      router.push('/off-market/index.simple');
       
       // Also notify the parent frame that we're navigating back, in case they need to handle it
       try {
-        window.parent.postMessage({ type: 'navigate-back', destination: '/off-market' }, '*');
+        window.parent.postMessage({ type: 'navigate-back', destination: '/off-market/index.simple' }, '*');
       } catch (e) {
         console.log('Could not send message to parent frame');
       }
     } else if (isSubdomain('offmarket')) {
       // On subdomain, navigate to the subdomain root
-      window.location.href = '/';
+      window.location.href = '/index.simple';
     } else {
       // Regular navigation
-      window.location.href = '/off-market';
+      window.location.href = '/off-market/index.simple';
     }
   };
 
