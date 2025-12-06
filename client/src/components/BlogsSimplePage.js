@@ -6,6 +6,9 @@ import { isSubdomain } from '@/utils/subdomainRouting';
  * Simple blog listing page with proper styling but minimal React dependencies
  * to troubleshoot React rendering issues
  */
+// Define slideshow interval reference at module level to avoid variable hoisting issues
+let slideshowInterval;
+
 export default function BlogsSimplePage() {
   // State management with a single state object to minimize hooks
   const [state, setState] = useState({
@@ -24,8 +27,7 @@ export default function BlogsSimplePage() {
   // Create a ref for infinite scrolling observer
   const loadMoreRef = useRef(null);
 
-  // Variables for slideshow - must be declared at top level to avoid variable reference errors
-  let slideshowInterval;
+  // Using the slideshowInterval declared at module scope
 
   // Set up slideshow for images - only runs in browser context
   function setupSlideshow() {
@@ -176,7 +178,11 @@ export default function BlogsSimplePage() {
     
     // Cleanup function
     return () => {
-      if (slideshowInterval) clearInterval(slideshowInterval);
+      // Clear the interval using the module-level variable
+      if (slideshowInterval) {
+        clearInterval(slideshowInterval);
+        slideshowInterval = null;
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
