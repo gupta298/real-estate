@@ -1,4 +1,5 @@
 import dynamic from 'next/dynamic';
+import { useState, useEffect } from 'react';
 
 // Create a loading component
 function LoadingFallback() {
@@ -25,5 +26,16 @@ const BlogsSimplePageComponent = dynamic(
  * Simple blog listing page wrapper with SSR disabled to avoid DOM/window access issues
  */
 export default function BlogsSimplePage() {
+  // Use a state to enforce client-side only rendering
+  const [isClient, setIsClient] = useState(false);
+  
+  // Only render on client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Only render component on client side
+  if (!isClient) return <LoadingFallback />;
+  
   return <BlogsSimplePageComponent />;
 }

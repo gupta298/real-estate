@@ -412,62 +412,72 @@ export default function OffMarketSimplePage() {
   
   // Get unique property types from all deals using useMemo
   const availablePropertyTypes = useMemo(() => {
+    if (!Array.isArray(state.allDeals)) return [];
     const types = new Set();
-    allDeals.forEach(deal => {
-      if (deal.propertyType) types.add(deal.propertyType);
+    state.allDeals.forEach(deal => {
+      if (deal && deal.propertyType) types.add(deal.propertyType);
     });
     return Array.from(types).sort();
-  }, [allDeals]);
+  }, [state.allDeals]);
 
   // Get unique sub-types - filtered by selected property types if any
   const availableSubTypes = useMemo(() => {
+    if (!Array.isArray(state.allDeals)) return [];
     const subTypes = new Set();
-    allDeals.forEach(deal => {
-      if (deal.propertySubType) {
+    state.allDeals.forEach(deal => {
+      if (deal && deal.propertySubType) {
         // If property types are selected, only show sub-types for those types
-        if (selectedPropertyTypes.length === 0 || selectedPropertyTypes.includes(deal.propertyType)) {
+        if (state.selectedPropertyTypes.length === 0 || 
+            state.selectedPropertyTypes.includes(deal.propertyType)) {
           subTypes.add(deal.propertySubType);
         }
       }
     });
     return Array.from(subTypes).sort();
-  }, [allDeals, selectedPropertyTypes]);
+  }, [state.allDeals, state.selectedPropertyTypes]);
 
   // Get unique statuses from all deals
   const availableStatuses = useMemo(() => {
+    if (!Array.isArray(state.allDeals)) return [];
     const statuses = new Set();
-    allDeals.forEach(deal => {
-      if (deal.status) statuses.add(deal.status);
+    state.allDeals.forEach(deal => {
+      if (deal && deal.status) statuses.add(deal.status);
     });
     return Array.from(statuses).sort();
-  }, [allDeals]);
+  }, [state.allDeals]);
 
   // Filter deals based on selected filters using useMemo
   const filteredDeals = useMemo(() => {
-    return allDeals.filter(deal => {
+    if (!Array.isArray(state.allDeals)) return [];
+    return state.allDeals.filter(deal => {
+      if (!deal) return false;
+      
       // Property type filter
-      if (selectedPropertyTypes.length > 0 && !selectedPropertyTypes.includes(deal.propertyType)) {
+      if (state.selectedPropertyTypes.length > 0 && 
+          !state.selectedPropertyTypes.includes(deal.propertyType)) {
         return false;
       }
       
       // Sub-type filter
-      if (selectedPropertySubTypes.length > 0 && !selectedPropertySubTypes.includes(deal.propertySubType)) {
+      if (state.selectedPropertySubTypes.length > 0 && 
+          !state.selectedPropertySubTypes.includes(deal.propertySubType)) {
         return false;
       }
       
       // Status filter
-      if (selectedStatuses.length > 0 && !selectedStatuses.includes(deal.status)) {
+      if (state.selectedStatuses.length > 0 && 
+          !state.selectedStatuses.includes(deal.status)) {
         return false;
       }
       
       return true;
     });
-  }, [allDeals, selectedPropertyTypes, selectedPropertySubTypes, selectedStatuses]);
+  }, [state.allDeals, state.selectedPropertyTypes, state.selectedPropertySubTypes, state.selectedStatuses]);
 
   // Get deals to display (paginated)
   const displayedDeals = useMemo(() => {
-    return filteredDeals.slice(0, displayCount);
-  }, [filteredDeals, displayCount]);
+    return filteredDeals.slice(0, state.displayCount);
+  }, [filteredDeals, state.displayCount]);
   
   // Handle retry
   function handleRetry() {

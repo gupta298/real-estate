@@ -1,4 +1,5 @@
 import dynamic from 'next/dynamic';
+import { useState, useEffect } from 'react';
 
 // Create a loading component
 function LoadingFallback() {
@@ -13,6 +14,7 @@ function LoadingFallback() {
 }
 
 // Import the actual component with SSR disabled
+// Use a more explicit noSSR pattern to fix browser variable issues
 const OffMarketSimplePageComponent = dynamic(
   () => import('@/components/OffMarketSimplePage'),
   { 
@@ -25,5 +27,16 @@ const OffMarketSimplePageComponent = dynamic(
  * Simple off-market listing page wrapper with SSR disabled to avoid DOM/window access issues
  */
 export default function OffMarketSimplePage() {
+  // Use a state to enforce client-side only rendering
+  const [isClient, setIsClient] = useState(false);
+  
+  // Only render on client side
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Only render component on client side
+  if (!isClient) return <LoadingFallback />;
+  
   return <OffMarketSimplePageComponent />;
 }
