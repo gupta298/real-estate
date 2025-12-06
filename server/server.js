@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const propertyRoutes = require('./routes/properties');
@@ -36,6 +37,66 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files (images)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// In production, serve the Next.js static files
+if (process.env.NODE_ENV === 'production') {
+  // List of possible build directories to check
+  const possibleBuildPaths = [
+    path.join(__dirname, '..', 'client', 'out'),
+    path.join(__dirname, '..', 'client', '.next'),
+    path.join(__dirname, '..', 'client', 'build'),
+    path.join(__dirname, '..', 'client', 'dist')
+  ];
+  
+  // Find the first existing build directory
+  let clientBuildPath = null;
+  for (const buildPath of possibleBuildPaths) {
+    if (fs.existsSync(buildPath)) {
+      clientBuildPath = buildPath;
+      console.log('✅ Serving Next.js static build from:', clientBuildPath);
+      break;
+    }
+  }
+  
+  if (clientBuildPath) {
+    // Serve static assets
+    app.use(express.static(clientBuildPath));
+    
+    // For all other routes, serve index.html (for client-side routing)
+    app.get('*', (req, res, next) => {
+      // Skip API routes
+      if (req.path.startsWith('/api/')) {
+        return next();
+      }
+      
+      // Check if the specific path exists as a file
+      const filePath = path.join(clientBuildPath, req.path);
+      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+        return res.sendFile(filePath);
+      }
+      
+      // Try to find index.html
+      const indexPath = path.join(clientBuildPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        return res.sendFile(indexPath);
+      }
+      
+      // If no index.html, try other common entry files
+      const alternativeFiles = ['_index.html', 'main.html', 'app.html'];
+      for (const file of alternativeFiles) {
+        const altPath = path.join(clientBuildPath, file);
+        if (fs.existsSync(altPath)) {
+          return res.sendFile(altPath);
+        }
+      }
+      
+      // If we can't find any suitable file, pass to next handler
+      next();
+    });
+  } else {
+    console.warn('⚠️ Next.js static build not found in any of the expected locations');
+  }
+}
+
 // Routes
 app.use('/api/properties', propertyRoutes);
 app.use('/api/search', searchRoutes);
@@ -58,8 +119,23 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+const db = require('./database/db');
+
+// Test database connection
+db.get('SELECT 1 AS test', (err, row) => {
+  if (err) {
+    console.error('❌ Database connection error:', err);
+  } else {
+    console.log('✅ Connected to SQLite database');
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🌐 Production mode: Serving both API and frontend`);
+  }
 });
 

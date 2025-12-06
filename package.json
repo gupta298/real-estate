@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "Modern real estate website with MLS integration",
   "scripts": {
+    "check-node-version": "node -e \"const current=process.versions.node.split('.')[0];const required=18;if(current<required){console.error('Error: Node.js version '+required+' or higher is required. Current version: '+process.versions.node);process.exit(1);}\"",
+    "check-npm-version": "node -e \"const cp=require('child_process');const current=cp.execSync('npm --version').toString().trim().split('.')[0];const required=9;if(current<required){console.error('Error: npm version '+required+' or higher is required. Current version: '+cp.execSync('npm --version').toString().trim());process.exit(1);}\"",
+    "preinstall": "npm run check-node-version && npm run check-npm-version",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
-    "build": "cd client && npm run build",
+    "build": "cd client && npm run build && cd ../server && npm install --production",
     "start": "cd server && npm start",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "init-db": "cd server && npm run init-db",
@@ -17,12 +20,28 @@
     "seed": "cd server && npm run seed",
     "seed-agents": "cd server && npm run seed-agents",
     "seed-off-market": "cd server && npm run seed-off-market",
-    "create-admin": "cd server && npm run create-admin"
+    "create-admin": "cd server && npm run create-admin",
+    "setup:env": "node ./scripts/setup-environment.js",
+    "production:setup": "npm run setup:env && npm ci && cd server && npm ci && cd ../client && npm ci",
+    "production:build": "npm run production:setup && npm run build",
+    "production:start": "cd server && NODE_ENV=production npm start",
+    "production:deploy": "node ./scripts/production-start.js"
   },
-  "keywords": ["real-estate", "property", "listings", "mls"],
+  "keywords": [
+    "real-estate",
+    "property",
+    "listings",
+    "mls"
+  ],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1"
   }
 }

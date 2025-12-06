@@ -1,0 +1,20 @@
+# Render deployment configuration
+
+services:
+  # Web service for the real estate website
+  - type: web
+    name: real-estate-website
+    env: node
+    plan: starter
+    buildCommand: npm run production:build
+    startCommand: npm run production:deploy
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        sync: false # Set this in the Render dashboard
+    healthCheckPath: /api/health
+    # Automatically handle database setup
+    autoDeploy: true

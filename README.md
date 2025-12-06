@@ -49,8 +49,17 @@ real-estate-website/
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- MLS API credentials (if using real MLS integration)
+- Node.js 18.17.0 or newer (required for Next.js 14)
+- npm 9.0.0 or newer
+- Git
+
+### Automatic Version Management
+
+This project includes automatic version checking for Node.js and npm:
+
+- The setup scripts automatically check if your environment meets the requirements
+- If incompatible versions are detected, the scripts will show helpful instructions
+- You can run the environment check separately with `npm run setup:env`
 
 ### Installation
 
@@ -178,16 +187,66 @@ The database includes tables for:
 
 ## Production Deployment
 
-1. **Build the frontend:**
+### Prerequisites
+
+- Node.js 18.17.0 or newer
+- npm 9.0.0 or newer
+- Git
+
+> **Note:** The `production:setup` script will automatically check and enforce these version requirements
+
+### Deployment Steps
+
+1. **Clone the repository:**
 ```bash
-npm run build
+git clone https://github.com/your-username/real-estate-website.git
+cd real-estate-website
 ```
 
-2. **Set production environment variables**
-
-3. **Start the server:**
+2. **Install dependencies and build (production mode):**
 ```bash
-npm start
+npm run production:setup  # Checks Node.js/npm versions and installs dependencies
+npm run production:build  # Builds client and prepares server
+```
+
+> **Note:** The setup script automatically checks for Node.js 18+ and npm 9+ compatibility. If your versions are incompatible, the script will fail with an error message.
+
+3. **Set production environment variables:**
+Create `server/.env` file with production settings:
+```env
+PORT=5000
+NODE_ENV=production
+DB_PATH=./database/realestate.db
+CORS_ORIGIN=https://your-production-domain.com
+```
+
+4. **Initialize the database and seed data:**
+```bash
+npm run init-db
+npm run migrate-all
+npm run seed-all  # Optional if you need sample data
+```
+
+5. **Start the application in production mode:**
+```bash
+npm run production:start
+```
+
+### Using Process Managers (Recommended)
+
+For production environments, use a process manager like PM2:
+
+```bash
+npm install -g pm2
+pm2 start server/server.js --name "real-estate-api"
+```
+
+### Deploying with Docker (Alternative)
+
+If you prefer Docker deployment, a Dockerfile and docker-compose.yml are provided in the repository.
+
+```bash
+docker-compose up -d
 ```
 
 ## Notes
@@ -199,4 +258,3 @@ npm start
 ## License
 
 MIT
-
