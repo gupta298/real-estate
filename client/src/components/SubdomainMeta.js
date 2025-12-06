@@ -1,16 +1,45 @@
-import Head from 'next/head';
+import { useEffect } from 'react';
 
 /**
- * Component to add metadata to subdomain pages
+ * Component to add metadata to subdomain pages using DOM API instead of Next.js Head
+ * to avoid potential issues with the React error #418/#423
  */
 export default function SubdomainMeta({ title, description }) {
-  return (
-    <Head>
-      <title>{title}</title>
-      <meta name="description" content={description} />
-      <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-      <meta property="og:title" content={title} />
-      <meta property="og:description" content={description} />
-    </Head>
-  );
+  useEffect(() => {
+    // Update metadata using DOM API
+    if (typeof document !== 'undefined') {
+      // Update title
+      document.title = title;
+      
+      // Update meta description
+      let metaDescription = document.querySelector('meta[name="description"]');
+      if (!metaDescription) {
+        metaDescription = document.createElement('meta');
+        metaDescription.name = 'description';
+        document.head.appendChild(metaDescription);
+      }
+      metaDescription.content = description;
+      
+      // Update og:title
+      let ogTitle = document.querySelector('meta[property="og:title"]');
+      if (!ogTitle) {
+        ogTitle = document.createElement('meta');
+        ogTitle.setAttribute('property', 'og:title');
+        document.head.appendChild(ogTitle);
+      }
+      ogTitle.content = title;
+      
+      // Update og:description
+      let ogDescription = document.querySelector('meta[property="og:description"]');
+      if (!ogDescription) {
+        ogDescription = document.createElement('meta');
+        ogDescription.setAttribute('property', 'og:description');
+        document.head.appendChild(ogDescription);
+      }
+      ogDescription.content = description;
+    }
+  }, [title, description]);
+  
+  // This component doesn't render anything visible
+  return null;
 }

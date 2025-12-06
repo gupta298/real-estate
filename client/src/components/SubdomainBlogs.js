@@ -1,45 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getBlogs } from '@/utils/api';
 import SubdomainMeta from './SubdomainMeta';
-import { useRouter } from 'next/router';
 
 /**
  * Simplified Blogs component specifically for subdomain display
  * This removes many UI elements for a cleaner, more focused view
  */
 export default function SubdomainBlogs() {
-  const router = useRouter();
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [loadAttempts, setLoadAttempts] = useState(0);
   const [isInIframe, setIsInIframe] = useState(false);
 
-  useEffect(() => {
-    // Initial load
-    loadBlogs();
-    
-    // Detect if we're in an iframe
-    setIsInIframe(window.self !== window.top);
-    
-    // Add automatic fallback if first load fails
-    const fallbackTimer = setTimeout(() => {
-      if (blogs.length === 0 && loadAttempts === 1) {
-        console.log('SubdomainBlogs: No blogs loaded on first attempt, trying again...');
-        loadBlogs(true); // Try retry
-      }
-    }, 3000); // Wait 3 seconds before retrying
-    
-    return () => clearTimeout(fallbackTimer);
-  }, []);
-
-  const loadBlogs = async (retry = false) => {
+  // Define loadBlogs function with useCallback to prevent recreation on each render
+  const loadBlogs = useCallback(async (retry = false) => {
     try {
       console.log(`SubdomainBlogs: Loading blogs (attempt ${loadAttempts + 1})...`);
       setLoading(true);
       setLoadError(null);
       
-      if (retry && loadAttempts > 0) {
+      if (retry) {
         console.log('SubdomainBlogs: Retry attempt');
       }
       
@@ -60,8 +41,24 @@ export default function SubdomainBlogs() {
       setBlogs([]);
     } finally {
       setLoading(false);
-      setLoadAttempts(prev => prev + 1);
+      setLoadAttempts(prevAttempts => prevAttempts + 1);
     }
+  }, [loadAttempts]); // Include loadAttempts in the dependency array
+  
+  // Effect for initial load
+  useEffect(() => {
+    // Initial load
+    loadBlogs();
+    
+    // Detect if we're in an iframe
+    if (typeof window !== 'undefined') {
+      setIsInIframe(window.self !== window.top);
+    }
+  }, [loadBlogs]); // Add loadBlogs as a dependency
+
+  // Retry handler function
+  const handleRetry = () => {
+    loadBlogs(true);
   };
 
   // Format date for display
@@ -70,15 +67,7 @@ export default function SubdomainBlogs() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-bf-blue"></div>
-        <p className="mt-4 text-gray-600">Loading blog posts...</p>
-      </div>
-    );
-  }
-
+  // Simple render function
   return (
     <div className="bg-white py-8">
       <SubdomainMeta 
@@ -138,7 +127,7 @@ export default function SubdomainBlogs() {
                       rel="noopener noreferrer"
                       className="inline-block text-bf-blue hover:text-blue-700 font-medium"
                     >
-                      Read More →
+                      Read More
                     </a>
                   </div>
                 </div>
@@ -151,10 +140,10 @@ export default function SubdomainBlogs() {
               {loading ? 'Loading...' : loadError ? `Error: ${loadError}` : 'No blog posts available at the moment.'}
             </p>
             <button 
-              onClick={() => loadBlogs(loadAttempts > 0)}
+              onClick={handleRetry}
               className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
             >
-              {loadAttempts > 0 ? 'Try Again' : 'Retry'}
+              Retry
             </button>
           </div>
         )}
