@@ -15,6 +15,8 @@ export default function SubdomainBlogs() {
 
   // Define loadBlogs function with useCallback to prevent recreation on each render
   const loadBlogs = useCallback(async (retry = false) => {
+    // Try with explicit API endpoint on retry
+    const useExplicitApi = retry;
     try {
       console.log(`SubdomainBlogs: Loading blogs (attempt ${loadAttempts + 1})...`);
       setLoading(true);
@@ -24,7 +26,8 @@ export default function SubdomainBlogs() {
         console.log('SubdomainBlogs: Retry attempt');
       }
       
-      const data = await getBlogs();
+      // On retry attempts, use explicit API path
+      const data = await getBlogs(useExplicitApi ? { useExplicitApi: true } : {});
       console.log('SubdomainBlogs: API response:', data);
       
       if (data && data.blogs && Array.isArray(data.blogs)) {

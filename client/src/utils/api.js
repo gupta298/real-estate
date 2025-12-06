@@ -304,10 +304,33 @@ export const deleteSellerInquiry = async (id) => {
 // Blogs API (public)
 export const getBlogs = async (params = {}) => {
   try {
-    console.log(`[API] Fetching blogs from: ${API_URL} with params:`, params);
-    console.log(`[API] Full URL being used: ${API_URL}/blogs`);
+    // Extract special flag then remove it from params
+    const useExplicitApi = params.useExplicitApi === true;
+    const normalParams = { ...params };
+    delete normalParams.useExplicitApi;
     
-    const response = await api.get('/blogs', { params });
+    // Use explicit API path on retry
+    const endpoint = useExplicitApi ? '/api/blogs' : '/blogs';
+    
+    console.log(`[API] Fetching blogs from: ${API_URL} with params:`, normalParams);
+    console.log(`[API] Using endpoint: ${endpoint} (explicit: ${useExplicitApi})`);
+    
+    const response = await api.get(endpoint, { 
+      params: normalParams,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-API-Request': 'true'
+      } 
+    });
+    
+    // Check if we received HTML instead of JSON (common error)
+    const contentType = response.headers?.['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('[API] Received HTML instead of JSON!');
+      throw new Error('Received HTML instead of JSON response');
+    }
+    
     console.log(`[API] Got blogs: ${response.status} ${response.data?.blogs?.length || 0} items`);
     return response.data;
   } catch (error) {
@@ -316,6 +339,11 @@ export const getBlogs = async (params = {}) => {
     // If we get a detailed error response, log it
     if (error.response) {
       console.error('[API] Error response:', error.response.status, error.response.data);
+      // Check if we received HTML
+      const contentType = error.response.headers?.['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        console.error('[API] Server returned HTML instead of JSON!');
+      }
     }
     
     throw error;
@@ -325,7 +353,21 @@ export const getBlogs = async (params = {}) => {
 export const getLatestBlogs = async (limit = 5) => {
   try {
     console.log(`[API] Fetching latest blogs from: ${API_URL} with limit: ${limit}`);
-    const response = await api.get('/blogs/latest', { params: { limit } });
+    const response = await api.get('/blogs/latest', { 
+      params: { limit },
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    
+    // Check if we received HTML instead of JSON
+    const contentType = response.headers?.['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('[API] Received HTML instead of JSON!');
+      throw new Error('Received HTML instead of JSON response');
+    }
+    
     console.log(`[API] Got latest blogs: ${response.status} ${response.data?.blogs?.length || 0} items`);
     return response.data;
   } catch (error) {
@@ -343,7 +385,20 @@ export const getLatestBlogs = async (limit = 5) => {
 export const getBlogById = async (id) => {
   try {
     console.log(`[API] Fetching blog ${id} from: ${API_URL}`);
-    const response = await api.get(`/blogs/${id}`);
+    const response = await api.get(`/blogs/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    
+    // Check if we received HTML instead of JSON
+    const contentType = response.headers?.['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('[API] Received HTML instead of JSON!');
+      throw new Error('Received HTML instead of JSON response');
+    }
+    
     console.log(`[API] Got blog: ${response.status}`, response.data?.blog?.title || 'no blog');
     return response.data;
   } catch (error) {

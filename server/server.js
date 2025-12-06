@@ -287,31 +287,80 @@ if (clientBuildPath) {
     console.warn('⚠️ Next.js static build not found in any of the expected locations');
 }
 
+// Define subdomain routing middleware
+app.use((req, res, next) => {
+  // Skip for static files, API requests, and direct API calls
+  if (req.path.startsWith('/_next/') || 
+      req.path.startsWith('/static/') ||
+      req.path.startsWith('/api/') ||
+      (req.headers.accept && req.headers.accept.includes('application/json'))) {
+    console.log(`🔍 [${new Date().toISOString()}] Static file or API request (bypassing redirect): ${req.path}`);
+    return next();
+  }
+  
+  // Log all incoming requests with full details
+  console.log(`📝 [${new Date().toISOString()}] Request: ${req.hostname}${req.url}`);
+  
+  next();
+});
+
 // Routes - mount at both /api/ path and direct root path for flexibility
-// Original /api routes
-app.use('/api/properties', propertyRoutes);
-app.use('/api/search', searchRoutes);
-app.use('/api/mls', mlsRoutes);
+// Original // API Routes - Mount both at /api prefix and root paths for subdomain compatibility
+// Main API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/agents', agentRoutes);
-app.use('/api/inquiries', inquiryRoutes);
-app.use('/api/seller-inquiries', sellerInquiryRoutes);
+app.use('/api/properties', propertyRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/off-market', offMarketRoutes);
-app.use('/api/blogs', blogRoutes);
+app.use('/api/seller-inquiries', sellerInquiryRoutes);
+app.use('/api/agents', agentRoutes);
+
+// Blogs API needs special handling to avoid conflicts with the /blogs route
+app.use('/api/blogs', (req, res, next) => {
+  console.log(`🔧 [${new Date().toISOString()}] API blogs request: ${req.path}`);
+  res.setHeader('Content-Type', 'application/json');
+  next();
+}, blogRoutes);
+
 app.use('/api/upload', uploadRoutes);
 
-// Also mount the same routes directly at root for direct access
-app.use('/properties', propertyRoutes);
-app.use('/search', searchRoutes);
-app.use('/mls', mlsRoutes);
+// Also mount the same routes directly at root for// Direct routes (no /api prefix) - Used for subdomain access
 app.use('/auth', authRoutes);
-app.use('/agents', agentRoutes);
-app.use('/inquiries', inquiryRoutes);
-app.use('/seller-inquiries', sellerInquiryRoutes);
+app.use('/properties', propertyRoutes);
 app.use('/admin', adminRoutes);
 app.use('/off-market', offMarketRoutes);
-app.use('/blogs', blogRoutes);
+app.use('/seller-inquiries', sellerInquiryRoutes);
+app.use('/agents', agentRoutes);
+
+// Special handling for /blogs route to distinguish API calls from page requests
+app.use('/blogs', (req, res, next) => {
+  // Check if this is an API request or a page request using multiple signals
+  const isApiRequest = (
+    // Check for JSON Accept header
+    (req.headers.accept && req.headers.accept.includes('application/json')) || 
+    // Check for XHR request
+    req.xhr || 
+    // Check for explicit XHR header
+    req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+    // Check for our custom API header
+    req.headers['x-api-request'] === 'true' ||
+    // Check for query params that suggest API usage
+    req.query.format === 'json'
+  );
+
+  console.log(`🔎 [${new Date().toISOString()}] Blogs request: ${req.path} - API: ${isApiRequest} (Headers: ${JSON.stringify(req.headers['x-requested-with'] || {})})`);
+  
+  if (isApiRequest) {
+    // For API requests, set JSON content type and pass to API handler
+    console.log(`✅ [${new Date().toISOString()}] Handling as API request: ${req.path}`);
+    res.setHeader('Content-Type', 'application/json');
+    return blogRoutes(req, res, next);
+  }
+  
+  console.log(`📄 [${new Date().toISOString()}] Handling as page request: ${req.path}`);
+  // For page requests, continue to the HTML handler
+  next();
+});
+
 app.use('/upload', uploadRoutes);
 
 // Health check - available at both /api/health and /health

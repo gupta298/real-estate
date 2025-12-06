@@ -6,8 +6,21 @@ const db = require('../database/db');
 router.get('/', (req, res) => {
   console.log(`[${new Date().toISOString()}] GET /blogs request from: ${req.get('x-request-origin') || req.get('host') || 'unknown'}`);
   
-  // Set correct content type
+  // Log headers for debugging
+  console.log(`Request headers: Accept=${req.get('accept')}, X-Requested-With=${req.get('x-requested-with')}`);
+  
+  // Check if client wants HTML (this should not happen with our current setup)
+  if (req.get('accept') && 
+      req.get('accept').includes('text/html') && 
+      !req.get('accept').includes('application/json') && 
+      !req.get('x-requested-with') && 
+      !req.get('x-api-request')) {
+    console.log('Warning: HTML request to API endpoint');
+  }
+  
+  // Always force JSON content type for API endpoints
   res.setHeader('Content-Type', 'application/json');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   
   const query = `
     SELECT b.*,
