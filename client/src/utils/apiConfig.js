@@ -5,33 +5,43 @@
 
 // Get API URL based on current domain or environment variables
 const getApiUrl = () => {
-  // Use environment variable if available
-  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  
-  // Otherwise, derive from current location in browser environment
+  // Check if we're in a browser environment
   if (typeof window !== 'undefined') {
-    // Extract base domain
+    // Extract current hostname and protocol
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
     
-    // For subdomains, use the main domain for API
-    if (hostname.includes('.blueflagindy.com')) {
-      // Since we're on a subdomain, we need to target the main site's API
+    // PRODUCTION LOGIC: Always use the main domain for API calls
+    
+    // For live blueflagindy.com domain or any of its subdomains
+    if (hostname === 'blueflagindy.com' || hostname.includes('.blueflagindy.com')) {
+      console.log('🌐 Using production API endpoint for blueflagindy.com');
       return `${protocol}//blueflagindy.com/api`;
+    }
+    
+    // For render.com preview domain
+    if (hostname.includes('render.com')) {
+      console.log('🌐 Using Render preview domain for API');
+      return `${protocol}//${hostname}/api`;
     }
     
     // For localhost development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      console.log('🌐 Using localhost API endpoint');
       return 'http://localhost:5000/api';
     }
     
-    // For production (main domain)
+    // Default case - use current domain
+    console.log(`🌐 Using current domain for API: ${hostname}`);
     return `${protocol}//${hostname}/api`;
   }
   
-  // Fallback for SSR or other environments
+  // For server-side rendering, first try the environment variable
+  if (process.env && process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  
+  // Default fallback for SSR
   return 'http://localhost:5000/api';
 };
 

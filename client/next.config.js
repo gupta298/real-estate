@@ -19,7 +19,11 @@ const nextConfig = {
     ],
   },
   env: {
-    API_URL: process.env.API_URL || 'http://localhost:5000/api',
+    // API_URL will be auto-determined at runtime in apiConfig.js
+    // This just sets a default for SSR
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+    // Add explicit subdomain allowances
+    ALLOWED_SUBDOMAINS: 'offmarket.blueflagindy.com,blog.blueflagindy.com',
   },
   async headers() {
     return [
@@ -29,7 +33,15 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "frame-ancestors https://blueflagindy.com;", // Only allow embedding from blueflagindy.com
+            value: "frame-ancestors https://blueflagindy.com https://*.blueflagindy.com;", // Allow embedding from main domain and all subdomains
+          },
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*', // Allow cross-origin requests for assets
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff', // Prevent MIME type sniffing
           },
         ],
       },

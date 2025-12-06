@@ -25,10 +25,29 @@ app.use(cors({
   credentials: true
 }));
 
+// We'll configure static file serving after middleware setup
+
+// Define static file patterns to skip redirects for
+const STATIC_FILE_PATTERNS = [
+  /^\/_next\//,
+  /^\/static\//,
+  /^\/api\//,
+  /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|json|map|webp)$/
+];
+
 // Enhanced subdomain routing with better path handling
 app.use((req, res, next) => {
   const host = req.hostname || req.headers.host || '';
   const url = req.url;
+  
+  // Check if this is a static file request
+  const isStaticFile = STATIC_FILE_PATTERNS.some(pattern => pattern.test(url));
+  
+  // Skip routing logic for static files and API requests
+  if (isStaticFile) {
+    console.log(`🔍 [${new Date().toISOString()}] Static file request (bypassing redirect): ${url}`);
+    return next();
+  }
   
   // Log all incoming requests with full details
   console.log(`📝 [${new Date().toISOString()}] Request: ${host}${url}`);
@@ -42,8 +61,8 @@ app.use((req, res, next) => {
   // Handle offmarket subdomain
   if (isOffmarketSubdomain) {
     // Make sure any request on the subdomain properly shows the off-market content
-    // Only redirect if not already on the off-market path
-    if (!url.startsWith('/off-market')) {
+    // Only redirect if not already on the off-market path and not a static asset
+    if (!url.startsWith('/off-market') && !url.startsWith('/api/')) {
       console.log(`🔜 Redirecting ${host}${url} to /off-market`);
       return res.redirect('/off-market');
     } else {
@@ -53,8 +72,8 @@ app.use((req, res, next) => {
   
   // Handle blog subdomain
   if (isBlogSubdomain) {
-    // Only redirect if not already on the blogs path
-    if (!url.startsWith('/blogs')) {
+    // Only redirect if not already on the blogs path and not a static asset
+    if (!url.startsWith('/blogs') && !url.startsWith('/api/')) {
       console.log(`🔜 Redirecting ${host}${url} to /blogs`);
       return res.redirect('/blogs');
     } else {
@@ -73,67 +92,199 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve static files (images)
+// Serve static uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// In production, serve the Next.js static files
-if (process.env.NODE_ENV === 'production') {
-  // List of possible build directories to check
-  const possibleBuildPaths = [
-    path.join(__dirname, '..', 'client', 'out'),
-    path.join(__dirname, '..', 'client', '.next'),
-    path.join(__dirname, '..', 'client', 'build'),
-    path.join(__dirname, '..', 'client', 'dist')
-  ];
-  
-  // Find the first existing build directory
-  let clientBuildPath = null;
-  for (const buildPath of possibleBuildPaths) {
-    if (fs.existsSync(buildPath)) {
-      clientBuildPath = buildPath;
-      console.log('✅ Serving Next.js static build from:', clientBuildPath);
-      break;
-    }
+// Serve the Next.js static files
+// List of possible build directories to check
+const possibleBuildPaths = [
+  path.join(__dirname, '..', 'client', 'out'),
+  path.join(__dirname, '..', 'client', '.next'),
+  path.join(__dirname, '..', 'client', 'build'),
+  path.join(__dirname, '..', 'client', 'dist')
+];
+
+// Find the first existing build directory
+let clientBuildPath = null;
+for (const buildPath of possibleBuildPaths) {
+  if (fs.existsSync(buildPath)) {
+    clientBuildPath = buildPath;
+    console.log('✅ Serving Next.js static build from:', clientBuildPath);
+    break;
   }
+}
+
+if (clientBuildPath) {
+  // Add a MIME type map to ensure files are served with the correct Content-Type
+  const mimeTypes = {
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.css': 'text/css',
+    '.html': 'text/html',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.ico': 'image/x-icon',
+    '.svg': 'image/svg+xml',
+    '.webp': 'image/webp',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.eot': 'application/vnd.ms-fontobject'
+  };
   
-  if (clientBuildPath) {
-    // Serve static assets
-    app.use(express.static(clientBuildPath));
+  // Serve static assets with FULL control over MIME types and headers
+  app.use(express.static(clientBuildPath, {
+    maxAge: '1h', // Cache static assets for 1 hour
+    setHeaders: (res, filePath) => {
+      // Get the file extension
+      const ext = path.extname(filePath).toLowerCase();
+      
+      // Set the correct Content-Type if we have it mapped
+      if (mimeTypes[ext]) {
+        res.setHeader('Content-Type', mimeTypes[ext]);
+      }
+      
+      // For JS files, add important security headers
+      if (ext === '.js') {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      }
+      
+      // Allow cross-origin access to fix subdomain issues
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Vary', 'Origin');
+      
+      // Log content type for debugging
+      console.log(`🔤 Serving ${ext} file with type: ${mimeTypes[ext] || 'default'}`);
+    },
+    fallthrough: true // Fallthrough to other handlers if file not found
+  }));
     
-    // For all other routes, serve index.html (for client-side routing)
+    // Special handler just for known problematic static resources
+    app.get('/_next/static/**/*', (req, res, next) => {
+      const fullPath = path.join(clientBuildPath, req.path);
+      console.log(`⭐ Special handling for Next.js asset: ${req.path}`);
+      
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        // Get the file extension
+        const ext = path.extname(fullPath).toLowerCase();
+        
+        // Set appropriate content type
+        if (ext === '.js') {
+          res.setHeader('Content-Type', 'application/javascript');
+        } else if (ext === '.css') {
+          res.setHeader('Content-Type', 'text/css');
+        }
+        
+        return res.sendFile(fullPath);
+      }
+      
+      // If file doesn't exist, continue to next handler
+      next();
+    });
+    
+    // For all routes except API routes, serve the appropriate HTML file
     app.get('*', (req, res, next) => {
       // Skip API routes
       if (req.path.startsWith('/api/')) {
         return next();
       }
       
-      // Check if the specific path exists as a file
-      const filePath = path.join(clientBuildPath, req.path);
-      if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        return res.sendFile(filePath);
-      }
-      
-      // Try to find index.html
-      const indexPath = path.join(clientBuildPath, 'index.html');
-      if (fs.existsSync(indexPath)) {
-        return res.sendFile(indexPath);
-      }
-      
-      // If no index.html, try other common entry files
-      const alternativeFiles = ['_index.html', 'main.html', 'app.html'];
-      for (const file of alternativeFiles) {
-        const altPath = path.join(clientBuildPath, file);
-        if (fs.existsSync(altPath)) {
-          return res.sendFile(altPath);
+      // Special handling for Next.js static assets that might have been missed
+      if (req.path.includes('/_next/') || req.path.match(/\.(js|css|json|map)$/)) {
+        console.log(`🔍 Detected missed static file: ${req.path}`);
+        const fullPath = path.join(clientBuildPath, req.path);
+        
+        if (fs.existsSync(fullPath)) {
+          const ext = path.extname(fullPath).toLowerCase();
+          if (ext === '.js') {
+            res.setHeader('Content-Type', 'application/javascript');
+          } else if (ext === '.css') {
+            res.setHeader('Content-Type', 'text/css');
+          } else if (ext === '.json') {
+            res.setHeader('Content-Type', 'application/json');
+          }
+          return res.sendFile(fullPath);
         }
       }
       
-      // If we can't find any suitable file, pass to next handler
-      next();
+      console.log(`🔄 Handling HTML route: ${req.path}`);
+      
+      // First check if the path maps directly to an HTML file
+      // (like /about.html or /blogs/page1.html)
+      const htmlPath = req.path.endsWith('.html') ? 
+        path.join(clientBuildPath, req.path) : 
+        path.join(clientBuildPath, `${req.path}.html`);
+      
+      if (fs.existsSync(htmlPath) && fs.statSync(htmlPath).isFile()) {
+        console.log(`📄 Serving HTML file: ${htmlPath}`);
+        return res.sendFile(htmlPath);
+      }
+      
+      // Next check if there's an index.html in a directory matching the path
+      const dirIndexPath = path.join(clientBuildPath, req.path, 'index.html');
+      if (fs.existsSync(dirIndexPath) && fs.statSync(dirIndexPath).isFile()) {
+        console.log(`📄 Serving directory index: ${dirIndexPath}`);
+        return res.sendFile(dirIndexPath);
+      }
+      
+      // Finally, fall back to the main index.html for client-side routing
+      const indexPath = path.join(clientBuildPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        console.log(`📄 Serving main index.html for: ${req.path}`);
+        return res.sendFile(indexPath);
+      }
+      
+      // If we can't find any suitable file, generate a simple error page
+      console.warn(`⚠️ No suitable file found for: ${req.path}`);
+      
+      // Generate a helpful debug page
+      const debugPage = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Debug Info - ${req.hostname}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 20px; line-height: 1.6; }
+            .container { max-width: 800px; margin: 0 auto; background: #f7f7f7; padding: 20px; border-radius: 5px; }
+            h1 { color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+            pre { background: #eee; padding: 10px; overflow: auto; border-radius: 3px; }
+            .path { font-weight: bold; color: #0066cc; }
+            .error { color: #cc0000; }
+            .info { background: #e6f7ff; border-left: 4px solid #1890ff; padding: 10px; margin: 10px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>Debug Information</h1>
+            <p class="info">This page is shown because the server could not find a suitable file to serve for this request.</p>
+            
+            <h2>Request Details</h2>
+            <ul>
+              <li><strong>Hostname:</strong> ${req.hostname}</li>
+              <li><strong>Path:</strong> <span class="path">${req.path}</span></li>
+              <li><strong>Method:</strong> ${req.method}</li>
+              <li><strong>IP:</strong> ${req.ip}</li>
+              <li><strong>Is Subdomain:</strong> ${req.hostname.includes('.blueflagindy.com')}</li>
+            </ul>
+            
+            <h2>File Search Attempts</h2>
+            <p>The server looked for the following files:</p>
+            <pre>${htmlPath}\n${dirIndexPath}\n${indexPath}</pre>
+            
+            <p>Please check the server logs for more information.</p>
+          </div>
+        </body>
+        </html>
+      `;
+      
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(404).send(debugPage);
     });
   } else {
     console.warn('⚠️ Next.js static build not found in any of the expected locations');
-  }
 }
 
 // Routes

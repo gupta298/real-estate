@@ -11,8 +11,14 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Log API configuration
-console.log(`API configured with baseURL: ${API_URL}`);
+// Log API configuration with more details
+const hostname = typeof window !== 'undefined' ? window.location.hostname : 'SSR';
+console.log(`API configured with baseURL: ${API_URL} (from ${hostname})`);
+
+// Allow inspecting the API config in browser console
+if (typeof window !== 'undefined') {
+  window.DEBUG_API_URL = API_URL;
+}
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
