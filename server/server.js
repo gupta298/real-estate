@@ -298,6 +298,15 @@ app.use((req, res, next) => {
     return next();
   }
   
+  // Special handling for blog subdomain
+  if (req.hostname === 'blog.blueflagindy.com' || req.hostname.startsWith('blog.')) {
+    // Don't redirect already-on-blogs paths
+    if (req.path === '/' || req.path === '') {
+      console.log(`📍 [${new Date().toISOString()}] Blog root request - ensuring /blogs/ path`);
+      req.url = '/blogs/';
+    }
+  }
+  
   // Log all incoming requests with full details
   console.log(`📝 [${new Date().toISOString()}] Request: ${req.hostname}${req.url}`);
   

@@ -1,80 +1,128 @@
-import { useState, useEffect, useCallback } from 'react';
+// Import React but minimize hooks to avoid hydration issues
+import { useState, useEffect } from 'react';
 import { getBlogs } from '@/utils/api';
-import SubdomainMeta from './SubdomainMeta';
 
 /**
- * Simplified Blogs component specifically for subdomain display
- * This removes many UI elements for a cleaner, more focused view
+ * Ultra-simplified Blogs component for subdomain display
+ * Minimizes hooks and complexity to avoid React errors #418 and #423
  */
 export default function SubdomainBlogs() {
-  const [blogs, setBlogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(null);
-  const [loadAttempts, setLoadAttempts] = useState(0);
-  const [isInIframe, setIsInIframe] = useState(false);
-
-  // Define loadBlogs function with useCallback to prevent recreation on each render
-  const loadBlogs = useCallback(async (retry = false) => {
-    try {
-      console.log(`SubdomainBlogs: Loading blogs (attempt ${loadAttempts + 1})...`);
-      setLoading(true);
-      setLoadError(null);
-      
-      if (retry) {
-        console.log('SubdomainBlogs: Retry attempt');
-      }
-      
-      // We now always use the explicit API path
-      const data = await getBlogs();
-      console.log('SubdomainBlogs: API response:', data);
-      
-      if (data && data.blogs && Array.isArray(data.blogs)) {
-        console.log(`SubdomainBlogs: Successfully loaded ${data.blogs.length} blogs`);
-        setBlogs(data.blogs);
-      } else {
-        console.error('SubdomainBlogs: Invalid response format, blogs array not found', data);
-        setLoadError('Received invalid data format from server');
-        setBlogs([]);
-      }
-    } catch (error) {
-      console.error('SubdomainBlogs: Error loading blogs:', error);
-      setLoadError(error.message || 'Failed to load blogs');
-      setBlogs([]);
-    } finally {
-      setLoading(false);
-      setLoadAttempts(prevAttempts => prevAttempts + 1);
-    }
-  }, [loadAttempts]); // Include loadAttempts in the dependency array
+  // Combine state into a single object to minimize hooks
+  const [state, setState] = useState({
+    blogs: [],
+    loading: true,
+    error: null,
+    isInIframe: false
+  });
   
-  // Effect for initial load
+  // Use a single effect for all initialization
   useEffect(() => {
-    // Initial load
+    // Flag to prevent state updates after unmount
+    let isActive = true;
+    
+    // Detect iframe
+    if (typeof window !== 'undefined') {
+      if (isActive) {
+        setState(prev => ({
+          ...prev,
+          isInIframe: window.self !== window.top
+        }));
+      }
+    }
+    
+    // Load blogs
+    async function loadBlogs() {
+      try {
+        console.log('SubdomainBlogs: Loading blogs...');
+        const data = await getBlogs();
+        console.log('SubdomainBlogs: API response:', data);
+        
+        if (isActive) {
+          if (data && data.blogs && Array.isArray(data.blogs)) {
+            console.log(`SubdomainBlogs: Successfully loaded ${data.blogs.length} blogs`);
+            setState(prev => ({
+              ...prev,
+              blogs: data.blogs,
+              loading: false
+            }));
+          } else {
+            console.error('SubdomainBlogs: Invalid response format, blogs array not found', data);
+            setState(prev => ({
+              ...prev,
+              error: 'Received invalid data format from server',
+              loading: false
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('SubdomainBlogs: Error loading blogs:', error);
+        if (isActive) {
+          setState(prev => ({
+            ...prev,
+            error: error.message || 'Failed to load blogs',
+            loading: false
+          }));
+        }
+      }
+    }
+    
     loadBlogs();
     
-    // Detect if we're in an iframe
-    if (typeof window !== 'undefined') {
-      setIsInIframe(window.self !== window.top);
-    }
-  }, [loadBlogs]); // Add loadBlogs as a dependency
-
-  // Retry handler function
-  const handleRetry = () => {
-    loadBlogs(true);
-  };
-
-  // Format date for display
-  const formatDate = (dateString) => {
+    // Cleanup function
+    return () => {
+      isActive = false;
+    };
+  }, []); // No dependencies for this effect
+  
+  // Simple helper function for date formatting
+  function formatDate(dateString) {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
-  };
-
-  // Simple render function
+  }
+  
+  // Handle retry
+  function handleRetry() {
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    // We need to wait for the next render before reloading
+    setTimeout(() => {
+      getBlogs()
+        .then(data => {
+          if (data && data.blogs && Array.isArray(data.blogs)) {
+            setState(prev => ({
+              ...prev,
+              blogs: data.blogs,
+              loading: false
+            }));
+          } else {
+            setState(prev => ({
+              ...prev,
+              error: 'Received invalid data format from server',
+              loading: false
+            }));
+          }
+        })
+        .catch(error => {
+          setState(prev => ({
+            ...prev,
+            error: error.message || 'Failed to load blogs',
+            loading: false
+          }));
+        });
+    }, 100);
+  }
+  
+  // Destructure state for easier access
+  const { blogs, loading, error, isInIframe } = state;
+  
+  // Simple render function that avoids Next.js components
   return (
     <div className="bg-white py-8">
-      <SubdomainMeta 
-        title="Blog | Blue Flag Indy" 
-        description="Real estate insights, market trends, and news from Blue Flag Indy" 
-      />
+      {/* Simple title - avoiding Next.js Head component which can cause hydration issues */}
+      {typeof document !== 'undefined' && (
+        <script dangerouslySetInnerHTML={{ 
+          __html: `document.title = 'Blog | Blue Flag Indy';` 
+        }} />
+      )}
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold text-bf-blue mb-6">Blog Posts</h1>
         <p className="text-lg text-gray-600 mb-8">
@@ -87,7 +135,7 @@ export default function SubdomainBlogs() {
             <p><strong>Debug Info:</strong></p>
             <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
             <p>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}</p>
-            <p>Load attempts: {loadAttempts}</p>
+            <p>Simple mode: active</p>
           </div>
         )}
         
@@ -138,7 +186,7 @@ export default function SubdomainBlogs() {
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
             <p className="text-gray-500 text-lg">
-              {loading ? 'Loading...' : loadError ? `Error: ${loadError}` : 'No blog posts available at the moment.'}
+              {loading ? 'Loading...' : error ? `Error: ${error}` : 'No blog posts available at the moment.'}
             </p>
             <button 
               onClick={handleRetry}
@@ -146,6 +194,11 @@ export default function SubdomainBlogs() {
             >
               Retry
             </button>
+            <div className="mt-4">
+              <a href="/blogs/ultra-simple" className="text-blue-500 underline">
+                View Ultra Simple Version
+              </a>
+            </div>
           </div>
         )}
       </div>
