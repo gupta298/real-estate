@@ -7,14 +7,16 @@ import { isSubdomain } from '@/utils/subdomainRouting';
  * to troubleshoot React rendering issues
  */
 export default function BlogsSimplePage() {
-  // Use a single state object to minimize hooks
+  // State management with a single state object to minimize hooks
   const [state, setState] = useState({
     blogs: [],
     loading: true,
     error: null,
     isInIframe: false,
     expandedBlogs: {}, // Track which blogs are expanded
-    expandedImages: {} // Track which images are expanded
+    expandedImages: {}, // Track which images are expanded
+    selectedBlog: null, // For modal view
+    modalOpen: false
   });
   
   // Check if we're on a subdomain
@@ -89,7 +91,7 @@ export default function BlogsSimplePage() {
     }
   }
   
-  // Process blog content - strip some HTML if needed
+  // Process blog content - strip some HTML if needed and limit length
   function processContent(content) {
     if (!content) return '';
     
@@ -102,6 +104,11 @@ export default function BlogsSimplePage() {
     return content.split('\n\n')
       .map(para => `<p>${para}</p>`)
       .join('');
+  }
+  
+  // Strip HTML tags for excerpt
+  function stripHtml(html) {
+    return html?.replace(/<[^>]*>/g, '') || '';
   }
 
   // Handle retry
@@ -133,16 +140,27 @@ export default function BlogsSimplePage() {
   }
 
   // Destructure state for easier access
-  const { blogs, loading, error, isInIframe, expandedBlogs, expandedImages } = state;
+  const { blogs, loading, error, isInIframe, expandedBlogs, expandedImages, selectedBlog, modalOpen } = state;
   
   // Toggle blog expansion
   function toggleBlogExpansion(blogId) {
+    // Find the blog
+    const blog = blogs.find(b => b.id === blogId);
+    if (blog) {
+      setState(prev => ({
+        ...prev,
+        selectedBlog: blog,
+        modalOpen: true
+      }));
+    }
+  }
+
+  // Close modal
+  function closeModal() {
     setState(prev => ({
       ...prev,
-      expandedBlogs: {
-        ...prev.expandedBlogs,
-        [blogId]: !prev.expandedBlogs[blogId]
-      }
+      selectedBlog: null,
+      modalOpen: false
     }));
   }
   
@@ -158,7 +176,7 @@ export default function BlogsSimplePage() {
   }
   
   // Custom CSS for blog content
-  const blogContentStyle = `
+  const contentStyle = `
     .blog-content p {
       margin-bottom: 1rem;
     }
@@ -184,17 +202,66 @@ export default function BlogsSimplePage() {
       height: auto;
       margin: 1rem 0;
     }
+    .swiper-pagination-bullet {
+      width: 8px;
+      height: 8px;
+      display: inline-block;
+      border-radius: 50%;
+      background: #000;
+      opacity: 0.2;
+    }
+    .swiper-pagination-bullet-active {
+      opacity: 1;
+      background: var(--swiper-theme-color,#007aff);
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+    }
+    .modal-content {
+      background-color: white;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 800px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    .modal-close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: white;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
   `;
   
   return (
-    <div className="bg-white py-8">
+    <div className="min-h-screen bg-gray-50">
       {/* Add custom CSS */}
-      <style dangerouslySetInnerHTML={{ __html: blogContentStyle }} />
-      <div className="container mx-auto px-4">
-        <h1 className="text-3xl font-bold text-bf-blue mb-6">Blog Posts</h1>
-        <p className="text-lg text-gray-600 mb-8">
-          Real estate insights, market trends, and news
-        </p>
+      <style dangerouslySetInnerHTML={{ __html: contentStyle }} />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-bf-blue mb-4">Blog</h1>
+          <p className="text-lg text-gray-600">
+            Latest news, insights, and updates from Blue Flag Realty
+          </p>
+        </div>
         
         {/* Debug info */}
         {process.env.NODE_ENV !== 'production' && (
@@ -229,101 +296,107 @@ export default function BlogsSimplePage() {
         
         {/* Blog list */}
         {!loading && !error && blogs.length > 0 ? (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {blogs.map((blog) => (
-              <div key={blog.id} className="border rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow">
-                {/* Blog header */}
-                <div className="p-4 bg-gray-50 flex flex-col md:flex-row md:justify-between md:items-center cursor-pointer gap-2"
-                  onClick={() => toggleBlogExpansion(blog.id)}
-                >
-                  <h2 className="text-xl font-semibold">{blog.title}</h2>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-500">{formatDate(blog.publishedAt || blog.createdAt)}</span>
-                    <span className="text-bf-blue">{expandedBlogs[blog.id] ? '▲' : '▼'}</span>
-                  </div>
-                </div>
-                
-                {/* Blog content - expandable */}
-                <div className={`p-4 transition-all duration-300 ${expandedBlogs[blog.id] ? '' : 'max-h-32 overflow-hidden relative'}`}>
-                  {!expandedBlogs[blog.id] && (
-                    <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-white to-transparent"></div>
-                  )}
-                  {/* Blog images */}
-                  {(blog.images && blog.images.length > 0) && (
-                    <div className="mb-4 flex flex-wrap gap-2">
-                      {blog.images.map((image, index) => (
-                        <div 
-                          key={`${blog.id}-img-${index}`} 
-                          className="relative cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent blog toggle
-                            toggleImageExpansion(`${blog.id}-img-${index}`);
-                          }}
-                        >
-                          <img
-                            src={image.thumbnailUrl || image.imageUrl}
-                            alt={image.caption || `Image ${index + 1}`}
-                            className={`rounded border ${expandedImages[`${blog.id}-img-${index}`] ? 'w-full max-w-2xl mx-auto block' : 'w-24 h-24 object-cover'}`}
-                          />
-                          {image.caption && expandedImages[`${blog.id}-img-${index}`] && (
-                            <p className="text-sm text-center text-gray-500 mt-1">{image.caption}</p>
-                          )}
+              <div key={blog.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300">
+                {/* Featured Image (if available) */}
+                {blog.images && blog.images.length > 0 && (
+                  <div className="relative h-64 w-full cursor-pointer" onClick={() => toggleBlogExpansion(blog.id)}>
+                    <div className="swiper swiper-initialized swiper-horizontal h-full w-full swiper-backface-hidden">
+                      <div className="swiper-wrapper">
+                        <div className="swiper-slide swiper-slide-active" style={{ width: '100%' }}>
+                          <div className="relative h-64 w-full bg-black">
+                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                              <img 
+                                src={blog.images[0].imageUrl || blog.images[0].thumbnailUrl} 
+                                alt="Featured Image" 
+                                className="object-contain"  
+                                style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                              />
+                            </div>
+                          </div>
                         </div>
-                      ))}
+                      </div>
+                      <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal swiper-pagination-lock">
+                        <span className="swiper-pagination-bullet swiper-pagination-bullet-active"></span>
+                      </div>
                     </div>
-                  )}
-                  
-                  {/* Blog excerpt */}
-                  <div className="text-gray-600 blog-content">
-                    {blog.content ? (
-                      <div 
-                        dangerouslySetInnerHTML={{ 
-                          __html: processContent(expandedBlogs[blog.id] ? blog.content : blog.content.substring(0, 300) + '...') 
-                        }} 
-                      />
-                    ) : blog.excerpt ? (
-                      <div dangerouslySetInnerHTML={{ __html: processContent(blog.excerpt) }} />
-                    ) : (
-                      <p>No content available.</p>
-                    )}
                   </div>
-                  
-                  {/* Read more button */}
-                  <div className="mt-4 text-center">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleBlogExpansion(blog.id);
-                      }}
-                      className="px-4 py-2 text-bf-blue hover:text-blue-700 font-medium border border-bf-blue rounded hover:bg-blue-50"
-                    >
-                      {expandedBlogs[blog.id] ? 'Show Less' : 'Read More'}
-                    </button>
-                  </div>
+                )}
+                <div className="p-6">
+                  <p className="text-sm text-gray-500 mb-2">{formatDate(blog.publishedAt || blog.createdAt)}</p>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-3">{blog.title}</h2>
+                  <p className="text-gray-700 mb-4">
+                    {blog.excerpt || blog.content?.substring(0, 200).replace(/<[^>]*>/g, '') || 'No content available.'}{blog.content?.length > 200 ? '...' : ''}
+                  </p>
+                  <button 
+                    onClick={() => toggleBlogExpansion(blog.id)}
+                    className="flex items-center gap-2 text-bf-blue hover:text-bf-gold font-semibold transition-colors"
+                  >
+                    <span>Read More</span>
+                    <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         ) : (!loading && !error) ? (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">No blog posts available at the moment.</p>
-            <div className="mt-6">
-              <a href="/blogs/" className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors">
-                Back to Main Blogs
-              </a>
-            </div>
+            <p className="text-gray-500 text-lg">No blogs available at the moment.</p>
           </div>
         ) : null}
-        
-        {/* Footer navigation */}
-        {!loading && blogs.length > 0 && (
-          <div className="mt-10 text-center border-t pt-6">
-            <a href="/blogs/" className="px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors">
-              Back to Main Blog Page
-            </a>
+
+        {/* Infinite scroll indicator */}
+        {!loading && !error && blogs.length > 0 && (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-bf-blue"></div>
+            <p className="text-gray-500 text-sm mt-2">Loading more posts...</p>
           </div>
         )}
       </div>
+
+      {/* Blog post modal */}
+      {modalOpen && selectedBlog && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close-button" onClick={closeModal}>
+              <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            
+            <div className="p-6">
+              <p className="text-sm text-gray-500 mb-2">{formatDate(selectedBlog.publishedAt || selectedBlog.createdAt)}</p>
+              <h2 className="text-3xl font-bold text-gray-900 mb-6">{selectedBlog.title}</h2>
+              
+              {/* Featured Image */}
+              {selectedBlog.images && selectedBlog.images.length > 0 && (
+                <div className="relative h-80 w-full mb-6">
+                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                    <img 
+                      src={selectedBlog.images[0].imageUrl || selectedBlog.images[0].thumbnailUrl} 
+                      alt="Featured Image" 
+                      className="h-full object-contain"
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Blog content */}
+              <div className="blog-content text-gray-700 mb-8">
+                {selectedBlog.content ? (
+                  <div dangerouslySetInnerHTML={{ __html: processContent(selectedBlog.content) }} />
+                ) : (
+                  <p>No content available for this post.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
