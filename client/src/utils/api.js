@@ -101,204 +101,597 @@ api.interceptors.response.use(
 
 // Properties API
 export const getProperties = async (params = {}) => {
-  const response = await api.get('/properties', { params });
-  return response.data;
+  try {
+    const response = await api.get('/api/properties', { 
+      params,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting properties:', error);
+    throw error;
+  }
 };
 
 export const getFeaturedProperties = async (limit = 6) => {
-  const response = await api.get('/properties/featured', { params: { limit } });
-  return response.data;
+  try {
+    const response = await api.get('/api/properties/featured', { 
+      params: { limit },
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting featured properties:', error);
+    throw error;
+  }
 };
 
 export const getPropertyById = async (id) => {
-  const response = await api.get(`/properties/${id}`);
-  return response.data;
+  try {
+    const response = await api.get(`/api/properties/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting property ${id}:`, error);
+    throw error;
+  }
+};
+
+export const getPropertyByIdSEO = async (id) => {
+  try {
+    const response = await api.get(`/api/properties/${id}/seo`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting property SEO ${id}:`, error);
+    throw error;
+  }
 };
 
 export const getPropertyByMLS = async (mlsNumber) => {
-  const response = await api.get(`/properties/mls/${mlsNumber}`);
-  return response.data;
+  try {
+    const response = await api.get(`/api/properties/mls/${mlsNumber}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting property by MLS number ${mlsNumber}:`, error);
+    throw error;
+  }
 };
 
 // Search API
 export const searchProperties = async (searchParams) => {
-  const response = await api.post('/search', searchParams);
-  return response.data;
+  try {
+    const response = await api.post('/api/search', searchParams, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error searching properties:', error);
+    throw error;
+  }
 };
 
 export const getSearchSuggestions = async (type, query) => {
-  const response = await api.get('/search/suggestions', {
-    params: { type, query },
-  });
-  return response.data;
+  try {
+    const response = await api.get('/api/search/suggestions', {
+      params: { type, query },
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting search suggestions:', error);
+    throw error;
+  }
 };
 
 // MLS API
 export const syncMLS = async () => {
-  const response = await api.post('/mls/sync');
-  return response.data;
+  try {
+    const response = await api.post('/api/mls/sync', {}, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error syncing MLS:', error);
+    throw error;
+  }
 };
 
 export const getMLSSyncStatus = async () => {
-  const response = await api.get('/mls/sync/status');
-  return response.data;
+  try {
+    const response = await api.get('/api/mls/sync/status', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting MLS sync status:', error);
+    throw error;
+  }
 };
 
 // Auth API
 export const signIn = async (credentials) => {
-  const response = await api.post('/auth/signin', credentials);
-  return response.data;
+  try {
+    console.log(`[API] Signing in user`);
+    const response = await api.post('/api/auth/signin', credentials, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error signing in:', error);
+    throw error;
+  }
 };
 
 export const signUp = async (userData) => {
-  const response = await api.post('/auth/signup', userData);
-  return response.data;
+  try {
+    const response = await api.post('/api/auth/signup', userData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error signing up:', error);
+    throw error;
+  }
 };
 
 export const signOut = async () => {
-  const response = await api.post('/auth/signout');
-  return response.data;
+  try {
+    const response = await api.post('/api/auth/signout', {}, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error signing out:', error);
+    throw error;
+  }
 };
 
 export const getCurrentUser = async () => {
-  const response = await api.get('/auth/me');
-  return response.data;
+  try {
+    const response = await api.get('/api/auth/me', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting current user:', error);
+    throw error;
+  }
 };
 
 // Update profile
 export const updateProfile = async (profileData) => {
-  const response = await api.put('/auth/profile', profileData);
-  return response.data;
+  try {
+    const response = await api.put('/api/auth/profile', profileData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error updating profile:', error);
+    throw error;
+  }
 };
 
 // Change password
 export const changePassword = async (currentPassword, newPassword) => {
-  const response = await api.put('/auth/change-password', {
-    currentPassword,
-    newPassword
-  });
-  return response.data;
+  try {
+    const response = await api.put('/api/auth/change-password', {
+      currentPassword,
+      newPassword
+    }, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error changing password:', error);
+    throw error;
+  }
 };
 
 // Agents API
 export const getAgents = async (params = {}) => {
-  const response = await api.get('/agents', { params });
-  return response.data;
+  try {
+    const response = await api.get('/api/agents', { 
+      params,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting agents:', error);
+    throw error;
+  }
 };
 
 export const getAgentById = async (id) => {
-  const response = await api.get(`/agents/${id}`);
-  return response.data;
+  try {
+    const response = await api.get(`/api/agents/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting agent ${id}:`, error);
+    throw error;
+  }
 };
 
 // Inquiries API
 export const submitInquiry = async (inquiryData) => {
-  const response = await api.post('/inquiries', inquiryData);
-  return response.data;
+  try {
+    const response = await api.post('/api/inquiries', inquiryData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error submitting inquiry:', error);
+    throw error;
+  }
 };
 
 // Off-Market Deals API (public)
 export const getOffMarketDeals = async (params = {}) => {
-  console.log('[API] Fetching off-market deals from:', API_URL, 'with params:', params);
   try {
-    // Force absolute URL for debugging
-    const fullUrl = `${API_URL}/off-market`;
-    console.log('[API] Full URL being used:', fullUrl);
+    // Always use explicit API path to avoid HTML responses
+    const normalParams = { ...params };
+    delete normalParams.useExplicitApi;
     
-    const response = await api.get('/off-market', { params });
-    console.log('[API] Got off-market deals:', response.status, response.data?.deals?.length || 0, 'items');
+    // IMPORTANT: Always use /api/off-market instead of /off-market to avoid conflicts
+    const endpoint = '/api/off-market';
+    
+    console.log(`[API] Fetching off-market deals from: ${API_URL} with params:`, normalParams);
+    console.log(`[API] Using endpoint: ${endpoint} (explicit API path)`);
+    
+    const response = await api.get(endpoint, { 
+      params: normalParams,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-API-Request': 'true'
+      } 
+    });
+    
+    // Check if we received HTML instead of JSON (common error)
+    const contentType = response.headers?.['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('[API] Received HTML instead of JSON!');
+      throw new Error('Received HTML instead of JSON response');
+    }
+    
+    console.log(`[API] Got off-market deals: ${response.status} ${response.data?.deals?.length || 0} items`);
     return response.data;
   } catch (error) {
     console.error('[API] Error loading off-market deals:', error);
+    
+    // If we get a detailed error response, log it
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
       console.error('[API] Error response:', error.response.status, error.response.data);
+      // Check if we received HTML
+      const contentType = error.response.headers?.['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        console.error('[API] Server returned HTML instead of JSON!');
+      }
     } else if (error.request) {
-      // The request was made but no response was received
-      console.error('[API] No response received for URL:', `${API_URL}/off-market`);
+      console.error('[API] No response received');
       console.log('[API] Using baseURL:', api.defaults.baseURL);
       console.log('[API] Browser location:', typeof window !== 'undefined' ? window.location.href : 'Not in browser');
     } else {
-      // Something happened in setting up the request
       console.error('[API] Error:', error.message);
     }
+    
     // Return empty data instead of throwing to avoid breaking UI
     return { deals: [] };
   }
 };
 
 export const getOffMarketDealById = async (id) => {
-  const response = await api.get(`/off-market/${id}`);
-  return response.data;
+  try {
+    // IMPORTANT: Always use /api/off-market instead of /off-market to avoid conflicts
+    const endpoint = `/api/off-market/${id}`;
+    console.log(`[API] Fetching off-market deal ${id} using endpoint: ${endpoint}`);
+    
+    const response = await api.get(endpoint, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-API-Request': 'true'
+      }
+    });
+    
+    // Check if we received HTML instead of JSON (common error)
+    const contentType = response.headers?.['content-type'] || '';
+    if (contentType.includes('text/html')) {
+      console.error('[API] Received HTML instead of JSON!');
+      throw new Error('Received HTML instead of JSON response');
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error loading off-market deal ${id}:`, error);
+    
+    if (error.response) {
+      console.error('[API] Error response:', error.response.status, error.response.data);
+      // Check if we received HTML
+      const contentType = error.response.headers?.['content-type'] || '';
+      if (contentType.includes('text/html')) {
+        console.error('[API] Server returned HTML instead of JSON!');
+      }
+    }
+    
+    throw error;
+  }
 };
 
 // Admin API
 export const getAdminProperties = async (params = {}) => {
-  const response = await api.get('/admin/properties', { params });
-  return response.data;
+  try {
+    const response = await api.get('/api/admin/properties', { 
+      params,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting admin properties:', error);
+    throw error;
+  }
 };
 
 export const togglePropertyFeatured = async (propertyId, featured) => {
-  const response = await api.post(`/admin/properties/${propertyId}/featured`, { featured });
-  return response.data;
+  try {
+    const response = await api.post(`/api/admin/properties/${propertyId}/featured`, { featured }, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error toggling property ${propertyId} featured status:`, error);
+    throw error;
+  }
 };
 
 export const getAdminOffMarketDeals = async (params = {}) => {
-  const response = await api.get('/admin/off-market-deals', { params });
-  return response.data;
+  try {
+    const response = await api.get('/api/admin/off-market-deals', { 
+      params,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting admin off-market deals:', error);
+    throw error;
+  }
 };
 
 export const getAdminOffMarketDeal = async (id) => {
-  const response = await api.get(`/admin/off-market-deals/${id}`);
-  return response.data;
+  try {
+    const response = await api.get(`/api/admin/off-market-deals/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting admin off-market deal ${id}:`, error);
+    throw error;
+  }
 };
 
 export const getOffMarketDealOptions = async () => {
-  const response = await api.get('/admin/off-market-deals/options');
-  return response.data;
+  try {
+    const response = await api.get('/api/admin/off-market-deals/options', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting off-market deal options:', error);
+    throw error;
+  }
 };
 
 export const createOffMarketDeal = async (dealData) => {
-  const response = await api.post('/admin/off-market-deals', dealData);
-  return response.data;
+  try {
+    const response = await api.post('/api/admin/off-market-deals', dealData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error creating off-market deal:', error);
+    throw error;
+  }
 };
 
 export const updateOffMarketDeal = async (id, dealData) => {
-  const response = await api.put(`/admin/off-market-deals/${id}`, dealData);
-  return response.data;
+  try {
+    const response = await api.put(`/api/admin/off-market-deals/${id}`, dealData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error updating off-market deal ${id}:`, error);
+    throw error;
+  }
 };
 
 export const deleteOffMarketDeal = async (id) => {
-  const response = await api.delete(`/admin/off-market-deals/${id}`);
-  return response.data;
+  try {
+    const response = await api.delete(`/api/admin/off-market-deals/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error deleting off-market deal ${id}:`, error);
+    throw error;
+  }
 };
 
 // Seller Inquiries API
 export const submitSellerInquiry = async (inquiryData) => {
-  const response = await api.post('/seller-inquiries', inquiryData);
-  return response.data;
+  try {
+    const response = await api.post('/api/seller-inquiries', inquiryData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error submitting seller inquiry:', error);
+    throw error;
+  }
 };
 
 // Admin Seller Inquiries API
 export const getSellerInquiries = async (params = {}) => {
-  const response = await api.get('/seller-inquiries', { params });
-  return response.data;
+  try {
+    const response = await api.get('/api/seller-inquiries', { 
+      params,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting seller inquiries:', error);
+    throw error;
+  }
+};
+
+export const createSellerInquiry = async (data) => {
+  try {
+    const response = await api.post('/api/seller-inquiries', data, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error creating seller inquiry:', error);
+    throw error;
+  }
 };
 
 export const getSellerInquiry = async (id) => {
-  const response = await api.get(`/seller-inquiries/${id}`);
-  return response.data;
+  try {
+    const response = await api.get(`/api/seller-inquiries/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting seller inquiry ${id}:`, error);
+    throw error;
+  }
 };
 
 export const updateSellerInquiry = async (id, updateData) => {
-  const response = await api.put(`/seller-inquiries/${id}`, updateData);
-  return response.data;
+  try {
+    const response = await api.put(`/api/seller-inquiries/${id}`, updateData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error updating seller inquiry ${id}:`, error);
+    throw error;
+  }
 };
 
 export const deleteSellerInquiry = async (id) => {
-  const response = await api.delete(`/seller-inquiries/${id}`);
-  return response.data;
+  try {
+    const response = await api.delete(`/api/seller-inquiries/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error deleting seller inquiry ${id}:`, error);
+    throw error;
+  }
 };
 
 // Blogs API (public)
@@ -409,73 +802,126 @@ export const getBlogById = async (id) => {
     if (error.response) {
       console.error('[API] Error response:', error.response.status, error.response.data);
     }
-    
     throw error;
   }
 };
 
 // Admin Blogs API
-export const getAdminBlogs = async () => {
-  const response = await api.get('/admin/blogs');
-  return response.data;
+export const getAdminBlogs = async (params = {}) => {
+  try {
+    const response = await api.get('/api/admin/blogs', { 
+      params,
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error getting admin blogs:', error);
+    throw error;
+  }
 };
 
 export const getAdminBlog = async (id) => {
-  const response = await api.get(`/admin/blogs/${id}`);
-  return response.data;
+  try {
+    const response = await api.get(`/api/admin/blogs/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error getting admin blog ${id}:`, error);
+    throw error;
+  }
 };
 
 export const createBlog = async (blogData) => {
-  const response = await api.post('/admin/blogs', blogData);
-  return response.data;
+  try {
+    const response = await api.post('/api/admin/blogs', blogData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error creating blog:', error);
+    throw error;
+  }
 };
 
 export const updateBlog = async (id, blogData) => {
-  const response = await api.put(`/admin/blogs/${id}`, blogData);
-  return response.data;
+  try {
+    const response = await api.put(`/api/admin/blogs/${id}`, blogData, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error updating blog ${id}:`, error);
+    throw error;
+  }
 };
 
 export const deleteBlog = async (id) => {
-  const response = await api.delete(`/admin/blogs/${id}`);
-  return response.data;
+  try {
+    const response = await api.delete(`/api/admin/blogs/${id}`, {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error deleting blog ${id}:`, error);
+    throw error;
+  }
 };
 
 // File Upload API
-export const uploadFile = async (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-
-  // Create a custom axios instance for file uploads to avoid Content-Type header issues
-  const token = localStorage.getItem('token');
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-  
-  const response = await axios.post(`${API_URL}/upload/file`, formData, {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-      // Don't set Content-Type - let browser set it with boundary
-    },
-  });
-  return response.data;
+export const uploadFile = async (file, token = null) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await axios.post(`${API_URL}/api/upload/file`, formData, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        // Don't set Content-Type - let browser set it with boundary
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error uploading file:', error);
+    throw error;
+  }
 };
 
-export const uploadFiles = async (files) => {
-  const formData = new FormData();
-  files.forEach(file => {
-    formData.append('files', file);
-  });
-
-  // Create a custom axios instance for file uploads to avoid Content-Type header issues
-  const token = localStorage.getItem('token');
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-  
-  const response = await axios.post(`${API_URL}/upload/files`, formData, {
-    headers: {
-      Authorization: token ? `Bearer ${token}` : '',
-      // Don't set Content-Type - let browser set it with boundary
-    },
-  });
-  return response.data;
+export const uploadFiles = async (files, token = null) => {
+  try {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    
+    const response = await axios.post(`${API_URL}/api/upload/files`, formData, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        // Don't set Content-Type - let browser set it with boundary
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error uploading files:', error);
+    throw error;
+  }
 };
 
 export default api;
-

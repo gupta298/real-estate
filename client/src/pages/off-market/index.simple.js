@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getOffMarketDeals } from '@/utils/api';
 import { isSubdomain } from '@/utils/subdomainRouting';
 import Link from 'next/link';
@@ -17,25 +17,63 @@ export default function OffMarketSimplePage() {
     error: null,
     isInIframe: false,
     expandedDeals: {}, // Track which deals are expanded
-    expandedImages: {}, // Track which images are expanded
-    filters: {
-      propertyType: 'All Types',
-      propertySubType: 'All Sub-Types',
-      status: 'All Statuses'
-    },
+    lightboxMedia: null, // For media modal view
+    displayCount: 12, // For infinite scrolling, similar to main page
+    isPropertyTypeOpen: false,
+    isSubTypeOpen: false,
+    isStatusOpen: false,
+    selectedPropertyTypes: [], // Multiple selection filters
+    selectedPropertySubTypes: [],
+    selectedStatuses: [],
     availableFilters: {
-      propertyTypes: ['All Types'],
-      propertySubTypes: ['All Sub-Types'],
-      statuses: ['All Statuses']
+      propertyTypes: [],
+      propertySubTypes: [],
+      statuses: []
     }
   });
   
   // Check if we're on a subdomain
   const isOnSubdomain = isSubdomain('offmarket');
   
+  // Open lightbox for media
+  function openLightbox(media, dealTitle, e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setState(prev => ({
+      ...prev,
+      lightboxMedia: { media, dealTitle }
+    }));
+    // Prevent scrolling when lightbox is open
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
+    }
+  }
+
+  // Close lightbox
+  function closeLightbox() {
+    // Pause all videos when closing
+    const videos = document.querySelectorAll('video');
+    videos.forEach(video => {
+      if (video) video.pause();
+    });
+    
+    setState(prev => ({
+      ...prev,
+      lightboxMedia: null
+    }));
+    
+    // Restore scrolling
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'unset';
+    }
+  }
+
   useEffect(() => {
     // Flag to track component mount state
     let isActive = true;
+    let slideshowInterval;
     
     // Check if in iframe
     if (typeof window !== 'undefined') {
@@ -57,45 +95,24 @@ export default function OffMarketSimplePage() {
         const data = await getOffMarketDeals();
         console.log('Off-market data received:', data);
         
-        if (isActive) {
-          if (data?.deals) {
-            // Extract available filter options
-            const propertyTypes = ['All Types'];
-            const propertySubTypes = ['All Sub-Types'];
-            const statuses = ['All Statuses'];
-            
-            data.deals.forEach(deal => {
-              if (deal.propertyType && !propertyTypes.includes(deal.propertyType)) {
-                propertyTypes.push(deal.propertyType);
-              }
-              
-              if (deal.propertySubType && !propertySubTypes.includes(deal.propertySubType)) {
-                propertySubTypes.push(deal.propertySubType);
-              }
-              
-              if (deal.status && !statuses.includes(deal.status)) {
-                statuses.push(deal.status);
-              }
-            });
-            
-            setState(prev => ({
-              ...prev,
-              deals: data.deals,
-              allDeals: data.deals,
-              loading: false,
-              availableFilters: {
-                propertyTypes,
-                propertySubTypes,
-                statuses
-              }
-            }));
-          } else {
-            setState(prev => ({
-              ...prev,
-              error: 'No deals found',
-              loading: false
-            }));
+        if (isActive && data?.deals) {
+          setState(prev => ({
+            ...prev,
+            deals: data.deals,
+            allDeals: data.deals,
+            loading: false
+          }));
+          
+          // Setup image slideshow
+          if (typeof window !== 'undefined') {
+            setupSlideshow();
           }
+        } else if (isActive) {
+          setState(prev => ({
+            ...prev,
+            error: 'No deals found',
+            loading: false
+          }));
         }
       } catch (err) {
         console.error('Error loading off-market deals:', err);
@@ -109,13 +126,111 @@ export default function OffMarketSimplePage() {
       }
     }
     
+    // Set up slideshow for media
+    function setupSlideshow() {
+      // Clear any existing interval
+      if (slideshowInterval) clearInterval(slideshowInterval);
+      
+      // Create slideshow interval - advance slides every 5 seconds
+      slideshowInterval = setInterval(() => {
+        try {
+          // Don't advance slides if a video is playing
+          const anyVideoPlaying = document.querySelector('video')?.paused === false;
+          if (anyVideoPlaying) return;
+          
+          // Get all slideshow containers
+          const slideshows = document.querySelectorAll('.swiper-wrapper');
+          
+          slideshows.forEach(slideshow => {
+            const slides = slideshow.querySelectorAll('.swiper-slide');
+            if (slides.length <= 1) return; // Skip if only one slide
+            
+            // Find active slide
+            let activeIndex = -1;
+            slides.forEach((slide, index) => {
+              if (slide.classList.contains('swiper-slide-active')) {
+                activeIndex = index;
+              }
+            });
+            
+            // Move to next slide
+            const nextIndex = (activeIndex + 1) % slides.length;
+            slides.forEach(s => s.classList.remove('swiper-slide-active'));
+            slides[nextIndex].classList.add('swiper-slide-active');
+            
+            // Update pagination bullets
+            const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
+            if (paginationContainer) {
+              const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
+              bullets.forEach(b => b.classList.remove('swiper-pagination-bullet-active'));
+              bullets[nextIndex]?.classList.add('swiper-pagination-bullet-active');
+            }
+          });
+        } catch (e) {
+          console.error('Error in slideshow:', e);
+        }
+      }, 5000); // Change slide every 5 seconds
+    }
+
+    // Handle video play/pause when user navigates away
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        // Page is hidden, pause all videos
+        document.querySelectorAll('video').forEach(video => video.pause());
+      }
+    }
+    
+    // Add visibility change listener
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    
     loadDeals();
     
     // Cleanup function to prevent memory leaks
     return () => {
       isActive = false;
+      if (slideshowInterval) clearInterval(slideshowInterval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
+      }
     };
   }, []);
+  
+  // Infinite scroll observer effect
+  useEffect(() => {
+    // Don't set up observer if all deals are already displayed or nothing to display
+    if (displayCount >= filteredDeals.length || filteredDeals.length === 0) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+        if (firstEntry?.isIntersecting && displayCount < filteredDeals.length) {
+          // Load 12 more deals
+          setState(prev => ({
+            ...prev,
+            displayCount: Math.min(prev.displayCount + 12, filteredDeals.length)
+          }));
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '200px' // Start loading before reaching the bottom
+      }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [displayCount, filteredDeals.length]);
   
   // Handle retry
   function handleRetry() {
@@ -170,45 +285,105 @@ export default function OffMarketSimplePage() {
       });
   }
 
-  // Handle filter changes
-  function handleFilterChange(filterType, value) {
+  // Toggle filter dropdown
+  function toggleDropdown(dropdown) {
+    setState(prev => ({
+      ...prev,
+      isPropertyTypeOpen: dropdown === 'propertyType' ? !prev.isPropertyTypeOpen : false,
+      isSubTypeOpen: dropdown === 'subType' ? !prev.isSubTypeOpen : false,
+      isStatusOpen: dropdown === 'status' ? !prev.isStatusOpen : false
+    }));
+  }
+
+  // Close all dropdowns
+  function closeAllDropdowns() {
+    setState(prev => ({
+      ...prev,
+      isPropertyTypeOpen: false,
+      isSubTypeOpen: false,
+      isStatusOpen: false
+    }));
+  }
+  
+  // Toggle property type filter
+  function togglePropertyType(type) {
     setState(prev => {
-      const newFilters = {
-        ...prev.filters,
-        [filterType]: value
-      };
-      
-      // Apply filters to allDeals
-      const filteredDeals = filterDeals(prev.allDeals, newFilters);
+      const newSelectedTypes = prev.selectedPropertyTypes.includes(type) 
+        ? prev.selectedPropertyTypes.filter(t => t !== type)
+        : [...prev.selectedPropertyTypes, type];
       
       return {
         ...prev,
-        filters: newFilters,
-        deals: filteredDeals
+        selectedPropertyTypes: newSelectedTypes,
+        displayCount: 12 // Reset pagination when changing filters
       };
     });
   }
   
-  // Filter deals based on selected filters
-  function filterDeals(deals, filters) {
-    return deals.filter(deal => {
-      // Property Type filter
-      if (filters.propertyType !== 'All Types' && deal.propertyType !== filters.propertyType) {
-        return false;
-      }
+  // Toggle sub-type filter
+  function toggleSubType(subType) {
+    setState(prev => {
+      const newSelectedSubTypes = prev.selectedPropertySubTypes.includes(subType) 
+        ? prev.selectedPropertySubTypes.filter(t => t !== subType)
+        : [...prev.selectedPropertySubTypes, subType];
       
-      // Property Sub-Type filter
-      if (filters.propertySubType !== 'All Sub-Types' && deal.propertySubType !== filters.propertySubType) {
-        return false;
-      }
-      
-      // Status filter
-      if (filters.status !== 'All Statuses' && deal.status !== filters.status) {
-        return false;
-      }
-      
-      return true;
+      return {
+        ...prev,
+        selectedPropertySubTypes: newSelectedSubTypes,
+        displayCount: 12 // Reset pagination when changing filters
+      };
     });
+  }
+  
+  // Toggle status filter
+  function toggleStatus(status) {
+    setState(prev => {
+      const newSelectedStatuses = prev.selectedStatuses.includes(status) 
+        ? prev.selectedStatuses.filter(s => s !== status)
+        : [...prev.selectedStatuses, status];
+      
+      return {
+        ...prev,
+        selectedStatuses: newSelectedStatuses,
+        displayCount: 12 // Reset pagination when changing filters
+      };
+    });
+  }
+  
+  // Remove individual filter
+  function removePropertyType(type) {
+    setState(prev => ({
+      ...prev,
+      selectedPropertyTypes: prev.selectedPropertyTypes.filter(t => t !== type),
+      displayCount: 12 // Reset pagination when changing filters
+    }));
+  }
+  
+  function removeSubType(subType) {
+    setState(prev => ({
+      ...prev,
+      selectedPropertySubTypes: prev.selectedPropertySubTypes.filter(t => t !== subType),
+      displayCount: 12 // Reset pagination when changing filters
+    }));
+  }
+  
+  function removeStatus(status) {
+    setState(prev => ({
+      ...prev,
+      selectedStatuses: prev.selectedStatuses.filter(s => s !== status),
+      displayCount: 12 // Reset pagination when changing filters
+    }));
+  }
+  
+  // Clear all filters
+  function clearAllFilters() {
+    setState(prev => ({
+      ...prev,
+      selectedPropertyTypes: [],
+      selectedPropertySubTypes: [],
+      selectedStatuses: [],
+      displayCount: 12 // Reset pagination when changing filters
+    }));
   }
   
   // Helper functions for formatting
@@ -230,16 +405,86 @@ export default function OffMarketSimplePage() {
     return null;
   };
   
+  // Create a ref for infinite scrolling observer
+  const loadMoreRef = useRef(null);
+
   // Destructure state for easier access
   const { 
     deals, 
+    allDeals,
     loading, 
     error, 
-    isInIframe, 
-    filters,
+    isInIframe,
+    lightboxMedia,
+    displayCount,
+    isPropertyTypeOpen,
+    isSubTypeOpen,
+    isStatusOpen,
+    selectedPropertyTypes,
+    selectedPropertySubTypes,
+    selectedStatuses,
     availableFilters
   } = state;
   
+  // Get unique property types from all deals using useMemo
+  const availablePropertyTypes = useMemo(() => {
+    const types = new Set();
+    allDeals.forEach(deal => {
+      if (deal.propertyType) types.add(deal.propertyType);
+    });
+    return Array.from(types).sort();
+  }, [allDeals]);
+
+  // Get unique sub-types - filtered by selected property types if any
+  const availableSubTypes = useMemo(() => {
+    const subTypes = new Set();
+    allDeals.forEach(deal => {
+      if (deal.propertySubType) {
+        // If property types are selected, only show sub-types for those types
+        if (selectedPropertyTypes.length === 0 || selectedPropertyTypes.includes(deal.propertyType)) {
+          subTypes.add(deal.propertySubType);
+        }
+      }
+    });
+    return Array.from(subTypes).sort();
+  }, [allDeals, selectedPropertyTypes]);
+
+  // Get unique statuses from all deals
+  const availableStatuses = useMemo(() => {
+    const statuses = new Set();
+    allDeals.forEach(deal => {
+      if (deal.status) statuses.add(deal.status);
+    });
+    return Array.from(statuses).sort();
+  }, [allDeals]);
+
+  // Filter deals based on selected filters using useMemo
+  const filteredDeals = useMemo(() => {
+    return allDeals.filter(deal => {
+      // Property type filter
+      if (selectedPropertyTypes.length > 0 && !selectedPropertyTypes.includes(deal.propertyType)) {
+        return false;
+      }
+      
+      // Sub-type filter
+      if (selectedPropertySubTypes.length > 0 && !selectedPropertySubTypes.includes(deal.propertySubType)) {
+        return false;
+      }
+      
+      // Status filter
+      if (selectedStatuses.length > 0 && !selectedStatuses.includes(deal.status)) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [allDeals, selectedPropertyTypes, selectedPropertySubTypes, selectedStatuses]);
+
+  // Get deals to display (paginated)
+  const displayedDeals = useMemo(() => {
+    return filteredDeals.slice(0, displayCount);
+  }, [filteredDeals, displayCount]);
+
   // Custom CSS
   const contentStyle = `
     .dropdown-menu {
@@ -260,6 +505,91 @@ export default function OffMarketSimplePage() {
       -webkit-box-orient: vertical;  
       overflow: hidden;
     }
+
+    .swiper-pagination {
+      position: absolute;
+      text-align: center;
+      transition: opacity 0.3s;
+      transform: translateZ(0);
+      z-index: 10;
+      bottom: 8px;
+      left: 0;
+      width: 100%;
+    }
+    
+    .swiper-pagination-bullet {
+      width: 8px;
+      height: 8px;
+      display: inline-block;
+      border-radius: 50%;
+      background: #000;
+      opacity: 0.2;
+      margin: 0 4px;
+    }
+    
+    .swiper-pagination-bullet-active {
+      opacity: 1;
+      background: var(--swiper-theme-color,#007aff);
+    }
+    
+    .swiper-slide {
+      flex-shrink: 0;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transition-property: transform;
+      display: block;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .swiper-slide-active {
+      opacity: 1;
+    }
+    
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.7);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+    }
+    
+    .modal-content {
+      background-color: white;
+      border-radius: 8px;
+      width: 95%;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      position: relative;
+    }
+    
+    .modal-close-button {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: white;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      z-index: 2;
+    }
+    
+    video:focus {
+      outline: none;
+    }
   `;
   
   return (
@@ -275,81 +605,200 @@ export default function OffMarketSimplePage() {
           
           {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            {/* Property Type Filter */}
+            {/* Property Type Dropdown */}
             <div className="relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Property Type</label>
               <div className="relative">
-                <select
-                  id="propertyType"
-                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 appearance-none pr-8"
-                  value={filters.propertyType}
-                  onChange={(e) => handleFilterChange('propertyType', e.target.value)}
+                <button
+                  onClick={() => toggleDropdown('propertyType')}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between hover:border-bf-blue transition duration-200"
                 >
-                  {availableFilters.propertyTypes.map(type => (
-                    <option key={type} value={type}>{type === 'All Types' ? type : type.charAt(0).toUpperCase() + type.slice(1)}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <FiChevronDown className="w-4 h-4" />
-                </div>
+                  <span className="text-gray-700">
+                    {selectedPropertyTypes.length === 0 
+                      ? 'All Types' 
+                      : `${selectedPropertyTypes.length} selected`}
+                  </span>
+                  <FiChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isPropertyTypeOpen ? 'transform rotate-180' : ''}`} />
+                </button>
+                
+                {isPropertyTypeOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2">
+                      {availablePropertyTypes.map(type => (
+                        <label
+                          key={type}
+                          className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedPropertyTypes.includes(type)}
+                            onChange={() => togglePropertyType(type)}
+                            className="w-4 h-4 text-bf-blue border-gray-300 rounded focus:ring-bf-blue"
+                          />
+                          <span className="flex items-center gap-2 text-gray-700">
+                            {getPropertyTypeIcon(type)}
+                            <span className="capitalize">{type}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+              
+              {/* Selected Property Types */}
+              {selectedPropertyTypes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedPropertyTypes.map(type => (
+                    <span
+                      key={type}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-bf-blue text-white text-sm rounded-full"
+                    >
+                      <span className="capitalize">{type}</span>
+                      <button
+                        onClick={() => removePropertyType(type)}
+                        className="hover:text-gray-200"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            {/* Sub-Type Filter */}
+
+            {/* Sub-Type Dropdown */}
             <div className="relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Sub-Type</label>
               <div className="relative">
-                <select
-                  id="propertySubType"
-                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 appearance-none pr-8"
-                  value={filters.propertySubType}
-                  onChange={(e) => handleFilterChange('propertySubType', e.target.value)}
+                <button
+                  onClick={() => toggleDropdown('subType')}
+                  disabled={selectedPropertyTypes.length === 0 && availableSubTypes.length === 0}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between hover:border-bf-blue transition duration-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 >
-                  {availableFilters.propertySubTypes.map(subType => (
-                    <option key={subType} value={subType}>{subType === 'All Sub-Types' ? subType : formatPropertySubType(subType)}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <FiChevronDown className="w-4 h-4" />
-                </div>
+                  <span className="text-gray-700">
+                    {selectedPropertySubTypes.length === 0 
+                      ? 'All Sub-Types' 
+                      : `${selectedPropertySubTypes.length} selected`}
+                  </span>
+                  <FiChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isSubTypeOpen ? 'transform rotate-180' : ''}`} />
+                </button>
+                
+                {isSubTypeOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2">
+                      {availableSubTypes.length > 0 ? (
+                        availableSubTypes.map(subType => (
+                          <label
+                            key={subType}
+                            className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedPropertySubTypes.includes(subType)}
+                              onChange={() => toggleSubType(subType)}
+                              className="w-4 h-4 text-bf-blue border-gray-300 rounded focus:ring-bf-blue"
+                            />
+                            <span className="text-gray-700">{formatPropertySubType(subType)}</span>
+                          </label>
+                        ))
+                      ) : (
+                        <div className="p-2 text-gray-500 text-sm">No sub-types available</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
+              
+              {/* Selected Sub-Types */}
+              {selectedPropertySubTypes.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedPropertySubTypes.map(subType => (
+                    <span
+                      key={subType}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-bf-gold text-white text-sm rounded-full"
+                    >
+                      <span>{formatPropertySubType(subType)}</span>
+                      <button
+                        onClick={() => removeSubType(subType)}
+                        className="hover:text-gray-200"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            {/* Status Filter */}
+
+            {/* Status Dropdown */}
             <div className="relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Status</label>
               <div className="relative">
-                <select
-                  id="status"
-                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 appearance-none pr-8"
-                  value={filters.status}
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                <button
+                  onClick={() => toggleDropdown('status')}
+                  className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between hover:border-bf-blue transition duration-200"
                 >
-                  {availableFilters.statuses.map(status => (
-                    <option key={status} value={status}>{status === 'All Statuses' ? status : formatStatus(status)}</option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                  <FiChevronDown className="w-4 h-4" />
-                </div>
+                  <span className="text-gray-700">
+                    {selectedStatuses.length === 0 
+                      ? 'All Statuses' 
+                      : `${selectedStatuses.length} selected`}
+                  </span>
+                  <FiChevronDown className={`w-5 h-5 text-gray-500 transition-transform ${isStatusOpen ? 'transform rotate-180' : ''}`} />
+                </button>
+                
+                {isStatusOpen && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    <div className="p-2">
+                      {availableStatuses.map(status => (
+                        <label
+                          key={status}
+                          className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedStatuses.includes(status)}
+                            onChange={() => toggleStatus(status)}
+                            className="w-4 h-4 text-bf-blue border-gray-300 rounded focus:ring-bf-blue"
+                          />
+                          <span className="text-gray-700">{formatStatus(status)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
+              
+              {/* Selected Statuses */}
+              {selectedStatuses.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedStatuses.map(status => (
+                    <span
+                      key={status}
+                      className={`inline-flex items-center gap-1 px-3 py-1 text-white text-sm rounded-full ${
+                        status === 'open' ? 'bg-green-500' :
+                        status === 'pending' ? 'bg-yellow-500' :
+                        'bg-gray-500'
+                      }`}
+                    >
+                      <span>{formatStatus(status)}</span>
+                      <button
+                        onClick={() => removeStatus(status)}
+                        className="hover:text-gray-200"
+                      >
+                        <FiX className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Clear Filters Button */}
-          {(filters.propertyType !== 'All Types' || filters.propertySubType !== 'All Sub-Types' || filters.status !== 'All Statuses') && (
+          {(selectedPropertyTypes.length > 0 || selectedPropertySubTypes.length > 0 || selectedStatuses.length > 0) && (
             <button
-              onClick={() => {
-                setState(prev => ({
-                  ...prev,
-                  filters: {
-                    propertyType: 'All Types',
-                    propertySubType: 'All Sub-Types',
-                    status: 'All Statuses'
-                  },
-                  deals: prev.allDeals
-                }));
-              }}
+              onClick={clearAllFilters}
               className="text-bf-blue hover:text-bf-gold text-sm font-semibold mb-4"
             >
               Clear All Filters
@@ -364,7 +813,8 @@ export default function OffMarketSimplePage() {
             <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
             <p>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}</p>
             <p>Simple version with minimal React hooks</p>
-            <p>Active filters: {JSON.stringify(filters)}</p>
+            <p>Active filters: Property Types: {selectedPropertyTypes.join(', ')}, SubTypes: {selectedPropertySubTypes.join(', ')}, Statuses: {selectedStatuses.join(', ')}</p>
+            <p>Filtered: {filteredDeals.length} / Total: {allDeals.length} / Displayed: {displayCount}</p>
           </div>
         )}
         
@@ -384,93 +834,185 @@ export default function OffMarketSimplePage() {
               Retry
             </button>
           </div>
-        ) : deals.length > 0 ? (
+        ) : filteredDeals.length > 0 ? (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {deals.map((deal) => (
-                <Link
-                  key={deal.id}
-                  href={`/off-market/${deal.id}`}
-                  className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 block"
-                >
-                  {/* Thumbnail or Media */}
-                  <div className="relative h-64 w-full">
-                    {deal.thumbnailUrl ? (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        <img
-                          src={deal.thumbnailUrl}
-                          alt={deal.title}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ) : deal.images && deal.images[0] ? (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                        <img
-                          src={deal.images[0].imageUrl || deal.images[0].thumbnailUrl}
-                          alt={deal.title}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                        <FiBriefcase className="w-16 h-16 text-gray-400" />
-                      </div>
-                    )}
-                    {deal.isHotDeal && (
-                      <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
-                        🔥 HOT
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-6">
-                    {/* Property Type Badge */}
-                    {deal.propertyType && (
-                      <div className="flex items-center gap-2 mb-3">
-                        {getPropertyTypeIcon(deal.propertyType)}
-                        <span className="text-sm font-semibold text-bf-blue">
-                          {deal.propertyType === 'home' ? 'Home' : 'Business'}
-                        </span>
-                        {deal.propertySubType && (
-                          <span className="text-sm text-gray-500">
-                            • {formatPropertySubType(deal.propertySubType)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Title */}
-                    <h2 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
-                      {deal.title}
-                    </h2>
-
-                    {/* Area */}
-                    {deal.area && (
-                      <div className="flex items-center gap-2 text-gray-600 mb-4">
-                        <FiMapPin className="w-4 h-4" />
-                        <span className="text-sm">{deal.area}</span>
-                      </div>
-                    )}
-
-                    {/* Preview Content */}
-                    <p className="text-gray-700 text-sm line-clamp-3 mb-4">
-                      {deal.content ? deal.content.replace(/\n/g, ' ').substring(0, 150) + '...' : 'No description available.'}
-                    </p>
-
-                    {/* View Details Link */}
-                    <div className="text-bf-blue font-semibold text-sm hover:underline">
-                      View Details →
+              {displayedDeals.map(deal => {
+                // Use thumbnail if available, otherwise fall back to first media item
+                const hasThumbnail = deal.thumbnailUrl && deal.thumbnailType;
+                
+                // Collect all media (images + videos) for carousel, sorted by displayOrder
+                const allMedia = [];
+                
+                if (deal.thumbnailUrl) {
+                  if (deal.thumbnailType === 'video') {
+                    allMedia.push({
+                      videoUrl: deal.thumbnailUrl,
+                      thumbnailUrl: deal.thumbnailUrl,
+                      caption: 'Thumbnail',
+                      type: 'video',
+                      displayOrder: -1 // Thumbnail first
+                    });
+                  } else {
+                    allMedia.push({
+                      imageUrl: deal.thumbnailUrl,
+                      thumbnailUrl: deal.thumbnailUrl,
+                      caption: 'Thumbnail',
+                      type: 'image',
+                      displayOrder: -1 // Thumbnail first
+                    });
+                  }
+                }
+                
+                // Add images, filtering out duplicates
+                if (deal.images && deal.images.length > 0) {
+                  const uniqueImages = deal.images.filter(img => {
+                    const imgUrl = img.imageUrl || img.thumbnailUrl;
+                    return !deal.thumbnailUrl || imgUrl !== deal.thumbnailUrl;
+                  });
+                  allMedia.push(...uniqueImages.map(img => ({ ...img, type: 'image' })));
+                }
+                
+                // Add videos, filtering out duplicates
+                if (deal.videos && deal.videos.length > 0) {
+                  const uniqueVideos = deal.videos.filter(vid => {
+                    return !deal.thumbnailUrl || vid.videoUrl !== deal.thumbnailUrl;
+                  });
+                  allMedia.push(...uniqueVideos.map(vid => ({ ...vid, type: 'video' })));
+                }
+                
+                // Sort by displayOrder
+                allMedia.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                
+                return (
+                  <Link
+                    key={deal.id}
+                    href={`/off-market/${deal.id}`}
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 block"
+                  >
+                    {/* Thumbnail or Media (Image or Video) */}
+                    <div className="relative h-64 w-full">
+                      {allMedia.length > 0 ? (
+                        <div className="swiper swiper-initialized swiper-horizontal h-full w-full">
+                          <div className="swiper-wrapper">
+                            {allMedia.map((item, index) => (
+                              <div key={`${deal.id}-media-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`} style={{ width: '100%' }}>
+                                <div className="w-full h-full">
+                                  {item.type === 'video' ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-black">
+                                      <video
+                                        src={item.videoUrl}
+                                        className="w-full h-full object-contain"
+                                        style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                        muted
+                                        loop
+                                        playsInline
+                                        autoPlay
+                                        preload="auto"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          openLightbox(item, deal.title, e);
+                                        }}
+                                      >
+                                        Your browser does not support the video tag.
+                                      </video>
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                      <img
+                                        src={item.imageUrl || item.thumbnailUrl}
+                                        alt={item.caption || deal.title || `Image ${index + 1}`}
+                                        className="h-full w-full object-cover cursor-pointer"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          openLightbox(item, deal.title, e);
+                                        }}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          {allMedia.length > 1 && (
+                            <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal">
+                              {allMedia.map((_, index) => (
+                                <span key={index} className={`swiper-pagination-bullet ${index === 0 ? 'swiper-pagination-bullet-active' : ''}`}></span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                          <FiBriefcase className="w-16 h-16 text-gray-400" />
+                        </div>
+                      )}
+                      {deal.isHotDeal && (
+                        <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
+                          🔥 HOT
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </Link>
-              ))}
+
+                    {/* Content */}
+                    <div className="p-6">
+                      {/* Property Type Badge */}
+                      {deal.propertyType && (
+                        <div className="flex items-center gap-2 mb-3">
+                          {getPropertyTypeIcon(deal.propertyType)}
+                          <span className="text-sm font-semibold text-bf-blue">
+                            {deal.propertyType === 'home' ? 'Home' : 'Business'}
+                          </span>
+                          {deal.propertySubType && (
+                            <span className="text-sm text-gray-500">
+                              • {formatPropertySubType(deal.propertySubType)}
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Title */}
+                      <h2 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
+                        {deal.title}
+                      </h2>
+
+                      {/* Area */}
+                      {deal.area && (
+                        <div className="flex items-center gap-2 text-gray-600 mb-4">
+                          <FiMapPin className="w-4 h-4" />
+                          <span className="text-sm">{deal.area}</span>
+                        </div>
+                      )}
+
+                      {/* Preview Content */}
+                      <p className="text-gray-700 text-sm line-clamp-3 mb-4">
+                        {deal.content ? deal.content.replace(/\n/g, ' ').substring(0, 150) + '...' : 'No description available.'}
+                      </p>
+
+                      {/* View Details Link */}
+                      <div className="text-bf-blue font-semibold text-sm hover:underline">
+                        View Details →
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
 
-            {/* Show count of deals */}
-            <div className="text-center py-8 text-gray-500 text-sm">
-              Showing all {deals.length} deal{deals.length !== 1 ? 's' : ''}
-            </div>
+            {/* Infinite scroll trigger */}
+            {displayCount < filteredDeals.length && (
+              <div ref={loadMoreRef} className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-bf-blue"></div>
+                <p className="text-gray-500 text-sm mt-2">Loading more deals...</p>
+              </div>
+            )}
+
+            {/* Show count if all deals are loaded */}
+            {displayCount >= filteredDeals.length && filteredDeals.length > 0 && (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                Showing all {filteredDeals.length} deal{filteredDeals.length !== 1 ? 's' : ''}
+              </div>
+            )}
           </>
         ) : (
           <div className="text-center py-12 bg-white rounded-lg shadow-md">
@@ -478,19 +1020,9 @@ export default function OffMarketSimplePage() {
             <p className="text-gray-500 text-lg">
               No off-market deals match your filters.
             </p>
-            {filters.propertyType !== 'All Types' || filters.propertySubType !== 'All Sub-Types' || filters.status !== 'All Statuses' ? (
+            {(selectedPropertyTypes.length > 0 || selectedPropertySubTypes.length > 0 || selectedStatuses.length > 0) ? (
               <button
-                onClick={() => {
-                  setState(prev => ({
-                    ...prev,
-                    filters: {
-                      propertyType: 'All Types',
-                      propertySubType: 'All Sub-Types',
-                      status: 'All Statuses'
-                    },
-                    deals: prev.allDeals
-                  }));
-                }}
+                onClick={clearAllFilters}
                 className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
               >
                 Clear Filters
@@ -505,6 +1037,71 @@ export default function OffMarketSimplePage() {
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxMedia && (
+        <div 
+          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center"
+          onClick={closeLightbox}
+        >
+          <div 
+            className="relative w-full h-full max-w-7xl mx-auto px-4 py-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
+              aria-label="Close lightbox"
+            >
+              <FiX className="w-6 h-6" />
+            </button>
+
+            {/* Deal Title */}
+            <div className="text-center mb-4">
+              <h3 className="text-white text-xl font-semibold">{lightboxMedia.dealTitle}</h3>
+            </div>
+
+            {/* Media Content */}
+            <div className="relative h-[calc(100vh-120px)] w-full flex items-center justify-center">
+              {lightboxMedia.media.type === 'video' ? (
+                <video
+                  src={lightboxMedia.media.videoUrl}
+                  controls
+                  className="max-w-full max-h-full object-contain"
+                  autoPlay
+                  loop
+                  preload="auto"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <img
+                  src={lightboxMedia.media.imageUrl || lightboxMedia.media.thumbnailUrl}
+                  alt={lightboxMedia.media.caption || lightboxMedia.dealTitle || 'Expanded image'}
+                  className="max-w-full max-h-full object-contain"
+                />
+              )}
+              
+              {lightboxMedia.media.caption && (
+                <div className="absolute bottom-4 left-0 right-0 text-center">
+                  <p className="text-white bg-black bg-opacity-50 px-4 py-2 rounded inline-block">
+                    {lightboxMedia.media.caption}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Click outside to close dropdowns */}
+      {(isPropertyTypeOpen || isSubTypeOpen || isStatusOpen) && (
+        <div
+          className="fixed inset-0 z-0"
+          onClick={closeAllDropdowns}
+        />
+      )}
     </div>
   );
 }

@@ -353,15 +353,33 @@ app.use((req, res, next) => {
   next();
 });
 
-// Routes - mount at both /api/ path and direct root path for flexibility
-// Original // API Routes - Mount both at /api prefix and root paths for subdomain compatibility
-// Main API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/properties', propertyRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/off-market', offMarketRoutes);
-app.use('/api/seller-inquiries', sellerInquiryRoutes);
-app.use('/api/agents', agentRoutes);
+// API Routes - Mount at /api prefix for explicit API path access
+// Apply CORS and Content-Type handling to all API routes
+const apiMiddleware = (req, res, next) => {
+  console.log(`🔧 [${new Date().toISOString()}] API request: ${req.path} from ${req.headers['host'] || 'unknown'}`);
+  
+  // Ensure we always respond with JSON, not HTML
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Add explicit CORS headers for subdomains
+  const origin = req.get('origin');
+  if (origin && (origin.includes('blueflagindy.com') || origin.includes('onrender.com') || origin.includes('localhost'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With, Authorization');
+  }
+  
+  next();
+};
+
+// Apply CORS and middleware to all API routes
+app.use('/api/auth', cors(corsOptions), apiMiddleware, authRoutes);
+app.use('/api/properties', cors(corsOptions), apiMiddleware, propertyRoutes);
+app.use('/api/admin', cors(corsOptions), apiMiddleware, adminRoutes);
+app.use('/api/off-market', cors(corsOptions), apiMiddleware, offMarketRoutes);
+app.use('/api/seller-inquiries', cors(corsOptions), apiMiddleware, sellerInquiryRoutes);
+app.use('/api/agents', cors(corsOptions), apiMiddleware, agentRoutes);
 
 // Blogs API needs special handling to avoid conflicts with the /blogs route
 app.use('/api/blogs', cors(corsOptions), (req, res, next) => {
@@ -375,15 +393,16 @@ app.use('/api/blogs', cors(corsOptions), (req, res, next) => {
   return blogRoutes(req, res, next);
 });
 
-app.use('/api/upload', uploadRoutes);
+app.use('/api/upload', cors(corsOptions), apiMiddleware, uploadRoutes);
 
-// Also mount the same routes directly at root for// Direct routes (no /api prefix) - Used for subdomain access
-app.use('/auth', authRoutes);
-app.use('/properties', propertyRoutes);
-app.use('/admin', adminRoutes);
-app.use('/off-market', offMarketRoutes);
-app.use('/seller-inquiries', sellerInquiryRoutes);
-app.use('/agents', agentRoutes);
+// Direct routes (no /api prefix) - Used for subdomain access
+// Apply the same middleware to direct routes for consistency
+app.use('/auth', cors(corsOptions), apiMiddleware, authRoutes);
+app.use('/properties', cors(corsOptions), apiMiddleware, propertyRoutes);
+app.use('/admin', cors(corsOptions), apiMiddleware, adminRoutes);
+app.use('/off-market', cors(corsOptions), apiMiddleware, offMarketRoutes);
+app.use('/seller-inquiries', cors(corsOptions), apiMiddleware, sellerInquiryRoutes);
+app.use('/agents', cors(corsOptions), apiMiddleware, agentRoutes);
 
 // Handle OPTIONS requests for /blogs endpoint explicitly
 app.options('/blogs*', cors(corsOptions));
@@ -418,7 +437,7 @@ app.use('/blogs', (req, res, next) => {
   next();
 });
 
-app.use('/upload', uploadRoutes);
+app.use('/upload', cors(corsOptions), apiMiddleware, uploadRoutes);
 
 // Health check - available at both /api/health and /health
 app.get('/api/health', (req, res) => {

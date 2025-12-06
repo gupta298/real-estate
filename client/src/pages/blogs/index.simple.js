@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getBlogs } from '@/utils/api';
 import { isSubdomain } from '@/utils/subdomainRouting';
 
@@ -14,17 +14,20 @@ export default function BlogsSimplePage() {
     error: null,
     isInIframe: false,
     expandedBlogs: {}, // Track which blogs are expanded
-    expandedImages: {}, // Track which images are expanded
-    selectedBlog: null, // For modal view
-    modalOpen: false
+    lightboxImages: null, // { image, blogTitle }
+    displayCount: 12 // For infinite scrolling, similar to main page
   });
   
   // Check if we're on a subdomain
   const isOnSubdomain = isSubdomain('blog');
   
+  // Create a ref for infinite scrolling observer
+  const loadMoreRef = useRef(null);
+
   useEffect(() => {
     // Flag to track component mount state
     let isActive = true;
+    let slideshowInterval;
     
     // Check if in iframe
     if (typeof window !== 'undefined') {
@@ -32,11 +35,6 @@ export default function BlogsSimplePage() {
         ...prev,
         isInIframe: window.self !== window.top
       }));
-    }
-    
-    // Set page title
-    if (typeof document !== 'undefined') {
-      document.title = 'Blogs | Blue Flag Indy';
     }
     
     // Load blogs on component mount
@@ -53,6 +51,11 @@ export default function BlogsSimplePage() {
               blogs: data.blogs,
               loading: false
             }));
+            
+            // Setup image slideshow
+            if (typeof window !== 'undefined') {
+              setupSlideshow();
+            }
           } else {
             setState(prev => ({
               ...prev,
@@ -73,13 +76,111 @@ export default function BlogsSimplePage() {
       }
     }
     
+    // Set up slideshow for images
+    function setupSlideshow() {
+      // Clear any existing interval
+      if (slideshowInterval) clearInterval(slideshowInterval);
+      
+      // Create slideshow interval - advance slides every 5 seconds
+      slideshowInterval = setInterval(() => {
+        try {
+          // Don't advance slides if a video is playing
+          const anyVideoPlaying = document.querySelector('video')?.paused === false;
+          if (anyVideoPlaying) return;
+          
+          // Get all slideshow containers
+          const slideshows = document.querySelectorAll('.swiper-wrapper');
+          
+          slideshows.forEach(slideshow => {
+            const slides = slideshow.querySelectorAll('.swiper-slide');
+            if (slides.length <= 1) return; // Skip if only one slide
+            
+            // Find active slide
+            let activeIndex = -1;
+            slides.forEach((slide, index) => {
+              if (slide.classList.contains('swiper-slide-active')) {
+                activeIndex = index;
+              }
+            });
+            
+            // Move to next slide
+            const nextIndex = (activeIndex + 1) % slides.length;
+            slides.forEach(s => s.classList.remove('swiper-slide-active'));
+            slides[nextIndex].classList.add('swiper-slide-active');
+            
+            // Update pagination bullets
+            const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
+            if (paginationContainer) {
+              const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
+              bullets.forEach(b => b.classList.remove('swiper-pagination-bullet-active'));
+              bullets[nextIndex]?.classList.add('swiper-pagination-bullet-active');
+            }
+          });
+        } catch (e) {
+          console.error('Error in slideshow:', e);
+        }
+      }, 5000); // Change slide every 5 seconds
+    }
+    
+    // Handle video play/pause when user navigates away
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        // Page is hidden, pause all videos
+        document.querySelectorAll('video').forEach(video => video.pause());
+      }
+    }
+    
+    // Add visibility change listener
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+    
     loadBlogs();
     
     // Cleanup function to prevent memory leaks
     return () => {
       isActive = false;
+      if (slideshowInterval) clearInterval(slideshowInterval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
+      }
     };
   }, []);
+  
+  // Infinite scroll observer effect (similar to main page)
+  useEffect(() => {
+    // Don't set up observer if all blogs are already displayed
+    if (displayCount >= blogs.length) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const firstEntry = entries[0];
+        if (firstEntry?.isIntersecting && displayCount < blogs.length) {
+          // Load 12 more blogs
+          setState(prev => ({
+            ...prev,
+            displayCount: Math.min(prev.displayCount + 12, blogs.length)
+          }));
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '200px' // Start loading before reaching the bottom
+      }
+    );
+
+    const currentRef = loadMoreRef.current;
+    if (currentRef) {
+      observer.observe(currentRef);
+    }
+
+    return () => {
+      if (currentRef) {
+        observer.unobserve(currentRef);
+      }
+    };
+  }, [displayCount, blogs.length]);
   
   // Format date for display
   function formatDate(dateString) {
@@ -140,39 +241,45 @@ export default function BlogsSimplePage() {
   }
 
   // Destructure state for easier access
-  const { blogs, loading, error, isInIframe, expandedBlogs, expandedImages, selectedBlog, modalOpen } = state;
+  const { blogs, loading, error, isInIframe, expandedBlogs, lightboxImages, displayCount } = state;
   
-  // Toggle blog expansion
+  // Toggle blog expansion in-place
   function toggleBlogExpansion(blogId) {
-    // Find the blog
-    const blog = blogs.find(b => b.id === blogId);
-    if (blog) {
-      setState(prev => ({
-        ...prev,
-        selectedBlog: blog,
-        modalOpen: true
-      }));
+    setState(prev => ({
+      ...prev,
+      expandedBlogs: {
+        ...prev.expandedBlogs,
+        [blogId]: !prev.expandedBlogs[blogId]
+      }
+    }));
+  }
+  
+  // Open lightbox for image
+  function openLightbox(image, blogTitle, e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setState(prev => ({
+      ...prev,
+      lightboxImages: { image, blogTitle }
+    }));
+    // Prevent scrolling when lightbox is open
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
     }
   }
 
-  // Close modal
-  function closeModal() {
+  // Close lightbox
+  function closeLightbox() {
     setState(prev => ({
       ...prev,
-      selectedBlog: null,
-      modalOpen: false
+      lightboxImages: null
     }));
-  }
-  
-  // Toggle image expansion
-  function toggleImageExpansion(imageId) {
-    setState(prev => ({
-      ...prev,
-      expandedImages: {
-        ...prev.expandedImages,
-        [imageId]: !prev.expandedImages[imageId]
-      }
-    }));
+    // Restore scrolling
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'unset';
+    }
   }
   
   // Custom CSS for blog content
@@ -202,6 +309,16 @@ export default function BlogsSimplePage() {
       height: auto;
       margin: 1rem 0;
     }
+    .swiper-pagination {
+      position: absolute;
+      text-align: center;
+      transition: opacity 0.3s;
+      transform: translateZ(0);
+      z-index: 10;
+      bottom: 8px;
+      left: 0;
+      width: 100%;
+    }
     .swiper-pagination-bullet {
       width: 8px;
       height: 8px;
@@ -209,10 +326,24 @@ export default function BlogsSimplePage() {
       border-radius: 50%;
       background: #000;
       opacity: 0.2;
+      margin: 0 4px;
     }
     .swiper-pagination-bullet-active {
       opacity: 1;
       background: var(--swiper-theme-color,#007aff);
+    }
+    .swiper-slide {
+      flex-shrink: 0;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transition-property: transform;
+      display: block;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .swiper-slide-active {
+      opacity: 1;
     }
     .modal-overlay {
       position: fixed;
@@ -220,7 +351,7 @@ export default function BlogsSimplePage() {
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
+      background-color: rgba(0, 0, 0, 0.7);
       display: flex;
       justify-content: center;
       align-items: center;
@@ -229,11 +360,12 @@ export default function BlogsSimplePage() {
     .modal-content {
       background-color: white;
       border-radius: 8px;
-      width: 90%;
-      max-width: 800px;
+      width: 95%;
+      max-width: 900px;
       max-height: 90vh;
       overflow-y: auto;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+      position: relative;
     }
     .modal-close-button {
       position: absolute;
@@ -241,13 +373,17 @@ export default function BlogsSimplePage() {
       right: 10px;
       background-color: white;
       border-radius: 50%;
-      width: 30px;
-      height: 30px;
+      width: 36px;
+      height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      z-index: 2;
+    }
+    video:focus {
+      outline: none;
     }
   `;
   
@@ -297,45 +433,131 @@ export default function BlogsSimplePage() {
         {/* Blog list */}
         {!loading && !error && blogs.length > 0 ? (
           <div className="space-y-6">
-            {blogs.map((blog) => (
+            {blogs.slice(0, displayCount).map((blog) => (
               <div key={blog.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300">
-                {/* Featured Image (if available) */}
-                {blog.images && blog.images.length > 0 && (
-                  <div className="relative h-64 w-full cursor-pointer" onClick={() => toggleBlogExpansion(blog.id)}>
-                    <div className="swiper swiper-initialized swiper-horizontal h-full w-full swiper-backface-hidden">
-                      <div className="swiper-wrapper">
-                        <div className="swiper-slide swiper-slide-active" style={{ width: '100%' }}>
-                          <div className="relative h-64 w-full bg-black">
-                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                              <img 
-                                src={blog.images[0].imageUrl || blog.images[0].thumbnailUrl} 
-                                alt="Featured Image" 
-                                className="object-contain"  
-                                style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
-                              />
+                {/* Featured Image/Media Carousel */}
+                {(() => {
+                  // Collect all media (images + videos), similar to main page
+                  const allMedia = [];
+                  const thumbnailUrl = blog.thumbnailUrl;
+                  
+                  if (thumbnailUrl) {
+                    if (blog.thumbnailType === 'video') {
+                      allMedia.push({
+                        videoUrl: thumbnailUrl,
+                        thumbnailUrl: thumbnailUrl,
+                        caption: 'Thumbnail',
+                        type: 'video',
+                        displayOrder: -1 // Thumbnail first
+                      });
+                    } else {
+                      allMedia.push({
+                        imageUrl: thumbnailUrl,
+                        thumbnailUrl: thumbnailUrl,
+                        caption: 'Thumbnail',
+                        type: 'image',
+                        displayOrder: -1 // Thumbnail first
+                      });
+                    }
+                  }
+                  
+                  // Add images, filtering out duplicates
+                  if (blog.images && blog.images.length > 0) {
+                    const uniqueImages = blog.images.filter(img => {
+                      const imgUrl = img.imageUrl || img.thumbnailUrl;
+                      return !thumbnailUrl || imgUrl !== thumbnailUrl;
+                    });
+                    allMedia.push(...uniqueImages.map(img => ({ ...img, type: 'image' })));
+                  }
+                  
+                  // Add videos, filtering out duplicates
+                  if (blog.videos && blog.videos.length > 0) {
+                    const uniqueVideos = blog.videos.filter(vid => {
+                      return !thumbnailUrl || vid.videoUrl !== thumbnailUrl;
+                    });
+                    allMedia.push(...uniqueVideos.map(vid => ({ ...vid, type: 'video' })));
+                  }
+                  
+                  // Sort by displayOrder
+                  allMedia.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                  
+                  if (allMedia.length === 0) return null;
+                  
+                  return (
+                    <div className="relative h-64 w-full cursor-pointer" onClick={() => toggleBlogExpansion(blog.id)}>
+                      <div className="swiper swiper-initialized swiper-horizontal h-full w-full swiper-backface-hidden">
+                        <div className="swiper-wrapper">
+                          {allMedia.map((item, index) => (
+                            <div key={`${blog.id}-preview-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`} style={{ width: '100%' }}>
+                              <div className="relative h-64 w-full bg-black">
+                                {item.type === 'video' ? (
+                                  <div className="w-full h-full flex items-center justify-center">
+                                    <video 
+                                      src={item.videoUrl}
+                                      className="w-full h-full object-contain"
+                                      style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
+                                      muted
+                                      loop
+                                      playsInline
+                                      autoPlay
+                                      preload="auto"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      Your browser does not support the video tag.
+                                    </video>
+                                  </div>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                    <img 
+                                      src={item.imageUrl || item.thumbnailUrl} 
+                                      alt={item.caption || blog.title || `Image ${index + 1}`} 
+                                      className="object-contain cursor-pointer"  
+                                      style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        openLightbox(item, blog.title, e);
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
+                          ))}
                         </div>
-                      </div>
-                      <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal swiper-pagination-lock">
-                        <span className="swiper-pagination-bullet swiper-pagination-bullet-active"></span>
+                        {allMedia.length > 1 && (
+                          <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal">
+                            {allMedia.map((_, index) => (
+                              <span key={index} className={`swiper-pagination-bullet ${index === 0 ? 'swiper-pagination-bullet-active' : ''}`}></span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()} 
                 <div className="p-6">
                   <p className="text-sm text-gray-500 mb-2">{formatDate(blog.publishedAt || blog.createdAt)}</p>
                   <h2 className="text-2xl font-bold text-gray-900 mb-3">{blog.title}</h2>
                   <p className="text-gray-700 mb-4">
-                    {blog.excerpt || blog.content?.substring(0, 200).replace(/<[^>]*>/g, '') || 'No content available.'}{blog.content?.length > 200 ? '...' : ''}
+                    {blog.excerpt || blog.content?.substring(0, 200).replace(/<[^>]*>/g, '') || 'No content available.'}{!expandedBlogs[blog.id] && blog.content?.length > 200 ? '...' : ''}
                   </p>
+                  
+                  {/* Expanded blog content */}
+                  {expandedBlogs[blog.id] && (
+                    <div className="blog-content mb-4">
+                      
+                      {/* Blog full content */}
+                      <div dangerouslySetInnerHTML={{ __html: processContent(blog.content) }} />
+                    </div>
+                  )}
+                  
                   <button 
                     onClick={() => toggleBlogExpansion(blog.id)}
                     className="flex items-center gap-2 text-bf-blue hover:text-bf-gold font-semibold transition-colors"
                   >
-                    <span>Read More</span>
+                    <span>{expandedBlogs[blog.id] ? 'Show Less' : 'Read More'}</span>
                     <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
-                      <polyline points="6 9 12 15 18 9"></polyline>
+                      <polyline points={expandedBlogs[blog.id] ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}></polyline>
                     </svg>
                   </button>
                 </div>
@@ -348,51 +570,78 @@ export default function BlogsSimplePage() {
           </div>
         ) : null}
 
-        {/* Infinite scroll indicator */}
-        {!loading && !error && blogs.length > 0 && (
-          <div className="text-center py-8">
+        {/* Infinite scroll indicator - only show if there might be more posts */}
+        {!loading && !error && blogs.length > 0 && displayCount < blogs.length && (
+          <div className="text-center py-8" ref={loadMoreRef}>
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-bf-blue"></div>
             <p className="text-gray-500 text-sm mt-2">Loading more posts...</p>
           </div>
         )}
+        
+        {/* Show count if all blogs are loaded */}
+        {!loading && !error && blogs.length > 0 && displayCount >= blogs.length && (
+          <div className="text-center py-8 text-gray-500 text-sm">
+            Showing all {blogs.length} post{blogs.length !== 1 ? 's' : ''}
+          </div>
+        )}
       </div>
 
-      {/* Blog post modal */}
-      {modalOpen && selectedBlog && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <button className="modal-close-button" onClick={closeModal}>
-              <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5" xmlns="http://www.w3.org/2000/svg">
+      {/* Lightbox Modal */}
+      {lightboxImages && (
+        <div 
+          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center"
+          onClick={closeLightbox}
+        >
+          <div 
+            className="relative w-full h-full max-w-7xl mx-auto px-4 py-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
+              aria-label="Close lightbox"
+            >
+              <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
                 <line x1="18" y1="6" x2="6" y2="18"></line>
                 <line x1="6" y1="6" x2="18" y2="18"></line>
               </svg>
             </button>
-            
-            <div className="p-6">
-              <p className="text-sm text-gray-500 mb-2">{formatDate(selectedBlog.publishedAt || selectedBlog.createdAt)}</p>
-              <h2 className="text-3xl font-bold text-gray-900 mb-6">{selectedBlog.title}</h2>
-              
-              {/* Featured Image */}
-              {selectedBlog.images && selectedBlog.images.length > 0 && (
-                <div className="relative h-80 w-full mb-6">
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                    <img 
-                      src={selectedBlog.images[0].imageUrl || selectedBlog.images[0].thumbnailUrl} 
-                      alt="Featured Image" 
-                      className="h-full object-contain"
-                    />
-                  </div>
-                </div>
+
+            {/* Blog Title */}
+            {lightboxImages.blogTitle && (
+              <div className="text-center mb-4">
+                <h3 className="text-white text-xl font-semibold">{lightboxImages.blogTitle}</h3>
+              </div>
+            )}
+
+            {/* Media Content */}
+            <div className="relative h-[calc(100vh-120px)] w-full flex items-center justify-center">
+              {lightboxImages.image.type === 'video' ? (
+                <video
+                  src={lightboxImages.image.videoUrl}
+                  controls
+                  className="max-w-full max-h-full object-contain"
+                  autoPlay
+                  preload="auto"
+                >
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <img
+                  src={lightboxImages.image.imageUrl || lightboxImages.image.thumbnailUrl}
+                  alt={lightboxImages.image.caption || lightboxImages.blogTitle || 'Expanded image'}
+                  className="max-w-full max-h-full object-contain"
+                />
               )}
               
-              {/* Blog content */}
-              <div className="blog-content text-gray-700 mb-8">
-                {selectedBlog.content ? (
-                  <div dangerouslySetInnerHTML={{ __html: processContent(selectedBlog.content) }} />
-                ) : (
-                  <p>No content available for this post.</p>
-                )}
-              </div>
+              {lightboxImages.image.caption && (
+                <div className="absolute bottom-4 left-0 right-0 text-center">
+                  <p className="text-white bg-black bg-opacity-50 px-4 py-2 rounded inline-block">
+                    {lightboxImages.image.caption}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
