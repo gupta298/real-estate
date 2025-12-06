@@ -1,0 +1,68 @@
+/**
+ * Custom styling for subdomain views
+ * This fixes the layout issues when displaying content on subdomains
+ */
+
+/* Reset body styles for subdomain views */
+.subdomain-view {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Content container */
+.subdomain-content {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0 auto;
+}
+
+/* Fix for the off-market page */
+.subdomain-view .max-w-7xl {
+  width: 100%;
+  max-width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 768px) {
+  .subdomain-view .max-w-7xl {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Fix for blog page */
+.subdomain-view .blog-container {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* Common styling fixes */
+.subdomain-view h1 {
+  font-size: 2.5rem;
+  margin-top: 1.5rem;
+}
+
+.subdomain-view h2 {
+  font-size: 2rem;
+}
+
+.subdomain-view img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .subdomain-view h1 {
+    font-size: 2rem;
+  }
+  
+  .subdomain-view h2 {
+    font-size: 1.75rem;
+  }
+}

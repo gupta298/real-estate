@@ -1,10 +1,25 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import SubdomainOffMarket from '@/components/SubdomainOffMarket';
+import { isSubdomain } from '@/utils/subdomainRouting';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getOffMarketDeals } from '@/utils/api';
 import { FiMapPin, FiHome, FiBriefcase, FiChevronDown, FiX } from 'react-icons/fi';
 
 export default function OffMarketDealsPage() {
+  const [isOffmarketSubdomain, setIsOffmarketSubdomain] = useState(false);
+  
+  useEffect(() => {
+    // Check if we're on the offmarket subdomain
+    setIsOffmarketSubdomain(isSubdomain('offmarket'));
+  }, []);
+  
+  // If accessed via subdomain, use the simplified component
+  if (isOffmarketSubdomain) {
+    return <SubdomainOffMarket />;
+  }
+  
+  // Regular component for main site
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPropertyTypes, setSelectedPropertyTypes] = useState([]);

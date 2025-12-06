@@ -1,5 +1,5 @@
 /**
- * Utility functions to handle subdomain-based routing
+ * Simple utility to detect subdomain access
  */
 
 /**
@@ -8,41 +8,28 @@
  * @returns {boolean} - True if current hostname matches the subdomain
  */
 export const isSubdomain = (subdomain) => {
+  // Handle server-side rendering
   if (typeof window === 'undefined') return false;
   
-  const hostname = window.location.hostname;
-  return hostname === `${subdomain}.blueflagindy.com` || hostname.startsWith(`${subdomain}.`);
-};
-
-/**
- * Get the appropriate initial page path based on subdomain
- * @returns {string} - The path to redirect to based on subdomain
- */
-export const getSubdomainPath = () => {
-  if (typeof window === 'undefined') return null;
-  
-  if (isSubdomain('offmarket')) {
-    return '/off-market';
+  try {
+    const hostname = window.location.hostname;
+    
+    // Check for exact subdomain match
+    if (hostname === `${subdomain}.blueflagindy.com`) return true;
+    
+    // Check for subdomain match with any domain
+    if (hostname.startsWith(`${subdomain}.`)) return true;
+    
+    // Special case for localhost testing
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get('subdomain') === subdomain) {
+      console.log(`🔍 Detected ${subdomain} subdomain via query parameter for testing`);
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Error detecting subdomain:', error);
+    return false;
   }
-  
-  if (isSubdomain('blog')) {
-    return '/blogs';
-  }
-  
-  return null;
-};
-
-/**
- * Check if we need to perform a client-side redirect based on subdomain
- * @param {string} currentPath - The current path
- * @returns {boolean} - True if a redirect is needed
- */
-export const needsSubdomainRedirect = (currentPath) => {
-  if (typeof window === 'undefined') return false;
-  
-  const targetPath = getSubdomainPath();
-  if (!targetPath) return false;
-  
-  // Don't redirect if already on the right path
-  return !currentPath.startsWith(targetPath);
 };

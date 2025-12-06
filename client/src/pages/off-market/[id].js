@@ -3,6 +3,8 @@ import { useRouter } from 'next/router';
 import Image from 'next/image';
 import Link from 'next/link';
 import { getOffMarketDealById } from '@/utils/api';
+import SubdomainOffMarketDetail from '@/components/SubdomainOffMarketDetail';
+import { isSubdomain } from '@/utils/subdomainRouting';
 import { FiPhone, FiMail, FiBriefcase, FiHome, FiMapPin, FiArrowLeft, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 
 export default function OffMarketDealDetailPage() {
@@ -12,11 +14,19 @@ export default function OffMarketDealDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isOffmarketSubdomain, setIsOffmarketSubdomain] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
 
   useEffect(() => {
     if (id) {
       loadDeal();
     }
+    
+    // Check if we're on the offmarket subdomain
+    setIsOffmarketSubdomain(isSubdomain('offmarket'));
+    
+    // Check if we're in an iframe
+    setIsInIframe(window.self !== window.top);
   }, [id]);
 
   const loadDeal = async () => {
@@ -64,6 +74,11 @@ export default function OffMarketDealDetailPage() {
     ));
   };
 
+  // Use the simplified component when in iframe or on subdomain
+  if (isOffmarketSubdomain || isInIframe) {
+    return <SubdomainOffMarketDetail id={id} />;
+  }
+  
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-12 text-center">

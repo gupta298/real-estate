@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import SubdomainBlogs from '@/components/SubdomainBlogs';
+import { isSubdomain } from '@/utils/subdomainRouting';
 import Image from 'next/image';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination, Keyboard } from 'swiper/modules';
@@ -12,6 +14,19 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 
 export default function BlogsPage() {
+  const [isBlogSubdomain, setIsBlogSubdomain] = useState(false);
+  
+  useEffect(() => {
+    // Check if we're on the blog subdomain
+    setIsBlogSubdomain(isSubdomain('blog'));
+  }, []);
+  
+  // If accessed via subdomain, use the simplified component
+  if (isBlogSubdomain) {
+    return <SubdomainBlogs />;
+  }
+  
+  // Regular component for main site
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedBlogs, setExpandedBlogs] = useState(new Set());

@@ -4,9 +4,10 @@ import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import '@/styles/globals.css';
 import '@/styles/swiper-custom.css';
+import '@/styles/subdomain.css';
 import Header from '@/components/Header/Header';
 import TopContactBar from '@/components/TopContactBar/TopContactBar';
-import { needsSubdomainRedirect, getSubdomainPath } from '@/utils/subdomainRouting';
+import { isSubdomain } from '@/utils/subdomainRouting';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -17,13 +18,6 @@ export default function App({ Component, pageProps }) {
     setIsHomePage(router.pathname === '/');
     // Detect if we're in an iframe
     setIsInIframe(window.self !== window.top);
-    
-    // Handle subdomain-based routing
-    if (needsSubdomainRedirect(router.pathname)) {
-      const targetPath = getSubdomainPath();
-      console.log(`Client-side redirecting to ${targetPath} based on subdomain`);
-      router.push(targetPath);
-    }
     
     // Send height updates to parent if in iframe
     if (window.self !== window.top) {
@@ -53,9 +47,26 @@ export default function App({ Component, pageProps }) {
     }
   }, [router.pathname]);
 
-  // Hide header and top bar in iframe for blog and off-market pages
-  const hideHeader = isInIframe && (router.pathname === '/blogs' || router.pathname === '/off-market');
+  // Check if we're on a subdomain (offmarket or blog)
+  const isOffmarketSubdomain = isSubdomain('offmarket');
+  const isBlogSubdomain = isSubdomain('blog');
+  const isOnSubdomain = isOffmarketSubdomain || isBlogSubdomain;
+  
+  // Hide header and top bar in iframe or when on subdomains
+  const hideHeader = isInIframe || isOnSubdomain;
 
+  // Different layout for subdomain access - much simpler, focused on content
+  if (isOnSubdomain) {
+    return (
+      <div className="bg-white subdomain-view">
+        <div className="subdomain-content">
+          <Component {...pageProps} />
+        </div>
+      </div>
+    );
+  }
+
+  // Regular layout for main site
   return (
     <div className="min-h-screen flex flex-col bg-white">
       {!hideHeader && <TopContactBar />}
