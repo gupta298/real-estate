@@ -9,7 +9,7 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
-    "build": "cd client && npm run build && cd ../server && npm install --production",
+    "build": "cd client && npm install --include=dev && npm run build && cd ../server && npm install --production",
     "start": "cd server && npm start",
     "install:all": "npm install && cd server && npm install && cd ../client && npm install",
     "init-db": "cd server && npm run init-db",
@@ -22,7 +22,7 @@
     "seed-off-market": "cd server && npm run seed-off-market",
     "create-admin": "cd server && npm run create-admin",
     "setup:env": "node ./scripts/setup-environment.js",
-    "production:setup": "npm run setup:env && npm install && cd server && npm install && cd ../client && npm install",
+    "production:setup": "npm run setup:env && npm install && cd server && npm install && cd ../client && npm install --include=dev",
     "production:build": "npm run production:setup && npm run build",
     "production:start": "cd server && NODE_ENV=production npm start",
     "production:deploy": "node ./scripts/production-start.js"
