@@ -405,9 +405,8 @@ export default function OffMarketDealsPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedDeals.map((deal) => {
-              const primaryImage = deal.images && deal.images.length > 0 
-                ? deal.images[0] 
-                : null;
+              // Use thumbnail if available, otherwise fall back to first media item
+              const hasThumbnail = deal.thumbnailUrl && deal.thumbnailType;
               
               return (
                 <Link
@@ -415,20 +414,90 @@ export default function OffMarketDealsPage() {
                   href={`/off-market/${deal.id}`}
                   className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300 block"
                 >
-                  {/* Image */}
+                  {/* Thumbnail or Media (Image or Video) */}
                   <div className="relative h-64 w-full">
-                    {primaryImage ? (
-                      <Image
-                        src={primaryImage.imageUrl || primaryImage.thumbnailUrl}
-                        alt={deal.title}
-                        fill
-                        className="object-cover"
-                        loading="lazy"
-                      />
+                    {hasThumbnail ? (
+                      deal.thumbnailType === 'video' ? (
+                        <div 
+                          className="w-full h-full flex items-center justify-center bg-black"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <video
+                            src={deal.thumbnailUrl}
+                            className="w-full h-full object-contain"
+                            style={{ maxWidth: '100%', maxHeight: '100%' }}
+                            muted
+                            loop
+                            playsInline
+                            autoPlay
+                            preload="auto"
+                            onCanPlay={(e) => {
+                              e.target.play().catch(() => {
+                                // Autoplay blocked, that's okay
+                              });
+                            }}
+                            onError={(e) => {
+                              console.error('Video load error for URL:', deal.thumbnailUrl);
+                              console.error('Error code:', e.target.error?.code);
+                              console.error('Error message:', e.target.error?.message);
+                            }}
+                          >
+                            Your browser does not support the video tag.
+                          </video>
+                        </div>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                          <Image
+                            src={deal.thumbnailUrl}
+                            alt={deal.title}
+                            fill
+                            className="object-contain"
+                            loading="lazy"
+                          />
+                        </div>
+                      )
                     ) : (
-                      <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                        <FiBriefcase className="w-16 h-16 text-gray-400" />
-                      </div>
+                      (() => {
+                        // Fallback to first media item
+                        const mediaItems = [
+                          ...(deal.images || []).map(img => ({ ...img, type: 'image' })),
+                          ...(deal.videos || []).map(vid => ({ ...vid, type: 'video' }))
+                        ].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                        const primaryMedia = mediaItems[0];
+                        
+                        return primaryMedia ? (
+                          primaryMedia.type === 'video' ? (
+                            <div className="w-full h-full flex items-center justify-center bg-black">
+                              <video
+                                src={primaryMedia.videoUrl}
+                                className="w-full h-full object-contain"
+                                style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                muted
+                                loop
+                                playsInline
+                                autoPlay
+                                preload="auto"
+                              >
+                                Your browser does not support the video tag.
+                              </video>
+                            </div>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                              <Image
+                                src={primaryMedia.imageUrl || primaryMedia.thumbnailUrl}
+                                alt={deal.title}
+                                fill
+                                className="object-contain"
+                                loading="lazy"
+                              />
+                            </div>
+                          )
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                            <FiBriefcase className="w-16 h-16 text-gray-400" />
+                          </div>
+                        );
+                      })()
                     )}
                     {deal.isHotDeal && (
                       <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">

@@ -142,6 +142,12 @@ export default function Header() {
             >
               Off Market
             </Link>
+            <Link
+              href="/blogs"
+              className="px-3 py-2 text-sm font-semibold text-gray-700 hover:text-bf-blue transition duration-200 rounded-md"
+            >
+              Blog
+            </Link>
             {user ? (
               <div className="flex items-center space-x-4">
                 {user.role === 'admin' && (
@@ -276,6 +282,13 @@ export default function Header() {
               onClick={() => setIsMenuOpen(false)}
             >
               Off-Market
+            </Link>
+            <Link
+              href="/blogs"
+              className="block text-gray-700 hover:text-primary-600 font-medium"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Blog
             </Link>
             {user ? (
               <div className="pt-4 border-t border-gray-200 space-y-4">

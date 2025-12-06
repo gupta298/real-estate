@@ -211,6 +211,8 @@ CREATE TABLE IF NOT EXISTS off_market_deals (
   contactPhone TEXT,
   contactEmail TEXT,
   contactTitle TEXT,
+  thumbnailUrl TEXT,
+  thumbnailType TEXT,
   isActive BOOLEAN DEFAULT 1,
   isHotDeal BOOLEAN DEFAULT 0,
   displayOrder INTEGER DEFAULT 0,
@@ -234,4 +236,59 @@ CREATE INDEX IF NOT EXISTS idx_offmarket_hot ON off_market_deals(isHotDeal);
 CREATE INDEX IF NOT EXISTS idx_offmarket_type ON off_market_deals(propertyType);
 CREATE INDEX IF NOT EXISTS idx_offmarket_status ON off_market_deals(status);
 CREATE INDEX IF NOT EXISTS idx_offmarket_images ON off_market_deal_images(dealId);
+
+-- Blogs table
+CREATE TABLE IF NOT EXISTS blogs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  excerpt TEXT,
+  featuredImageUrl TEXT,
+  thumbnailUrl TEXT,
+  thumbnailType TEXT,
+  isPublished BOOLEAN DEFAULT 1,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Blog images table
+CREATE TABLE IF NOT EXISTS blog_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  blogId INTEGER NOT NULL,
+  imageUrl TEXT NOT NULL,
+  thumbnailUrl TEXT,
+  displayOrder INTEGER DEFAULT 0,
+  caption TEXT,
+  FOREIGN KEY (blogId) REFERENCES blogs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_blogs_published ON blogs(isPublished);
+CREATE INDEX IF NOT EXISTS idx_blogs_created ON blogs(createdAt);
+CREATE INDEX IF NOT EXISTS idx_blog_images ON blog_images(blogId);
+
+-- Blog videos table
+CREATE TABLE IF NOT EXISTS blog_videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  blogId INTEGER NOT NULL,
+  videoUrl TEXT NOT NULL,
+  thumbnailUrl TEXT,
+  displayOrder INTEGER DEFAULT 0,
+  caption TEXT,
+  FOREIGN KEY (blogId) REFERENCES blogs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_blog_videos ON blog_videos(blogId);
+
+-- Off-market deal videos table
+CREATE TABLE IF NOT EXISTS off_market_deal_videos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dealId INTEGER NOT NULL,
+  videoUrl TEXT NOT NULL,
+  thumbnailUrl TEXT,
+  displayOrder INTEGER DEFAULT 0,
+  caption TEXT,
+  FOREIGN KEY (dealId) REFERENCES off_market_deals(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_offmarket_videos ON off_market_deal_videos(dealId);
 

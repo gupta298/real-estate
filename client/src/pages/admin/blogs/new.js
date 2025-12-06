@@ -1,90 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { getAdminOffMarketDeal, updateOffMarketDeal, getOffMarketDealOptions, uploadFile, uploadFiles } from '@/utils/api';
+import { createBlog, uploadFile, uploadFiles } from '@/utils/api';
 import { FiArrowLeft, FiX, FiUpload } from 'react-icons/fi';
-import AutocompleteInput from '@/components/AutocompleteInput/AutocompleteInput';
 
-export default function EditOffMarketDealPage() {
+export default function NewBlogPage() {
   const router = useRouter();
-  const { id } = router.query;
   const [formData, setFormData] = useState({
     title: '',
     content: '',
-    propertyType: '',
-    propertySubType: '',
-    area: '',
-    status: 'open',
-    contactName: '',
-    contactPhone: '',
-    contactEmail: '',
-    contactTitle: '',
+    excerpt: '',
     thumbnailUrl: '',
     thumbnailType: '',
-    isActive: true,
-    isHotDeal: false,
-    displayOrder: 0,
+    isPublished: true,
     images: [],
     videos: []
   });
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
-  const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
-  const [propertySubTypeOptions, setPropertySubTypeOptions] = useState([]);
-
-  useEffect(() => {
-    loadOptions();
-    if (id) {
-      loadDeal();
-    }
-  }, [id]);
-
-  const loadOptions = async () => {
-    try {
-      const data = await getOffMarketDealOptions();
-      setPropertyTypeOptions(data.propertyTypes || []);
-      setPropertySubTypeOptions(data.propertySubTypes || []);
-    } catch (error) {
-      console.error('Error loading options:', error);
-    }
-  };
-
-  const loadDeal = async () => {
-    try {
-      setLoadingData(true);
-      const data = await getAdminOffMarketDeal(id);
-      if (data.deal) {
-        setFormData({
-          title: data.deal.title || '',
-          content: data.deal.content || '',
-          propertyType: data.deal.propertyType || '',
-          propertySubType: data.deal.propertySubType || '',
-          area: data.deal.area || '',
-          status: data.deal.status || 'open',
-          contactName: data.deal.contactName || '',
-          contactPhone: data.deal.contactPhone || '',
-          contactEmail: data.deal.contactEmail || '',
-          contactTitle: data.deal.contactTitle || '',
-          isActive: data.deal.isActive !== false,
-          isHotDeal: data.deal.isHotDeal || false,
-          displayOrder: data.deal.displayOrder || 0,
-          images: data.deal.images || [],
-          videos: data.deal.videos || [],
-          thumbnailUrl: data.deal.thumbnailUrl || '',
-          thumbnailType: data.deal.thumbnailType || ''
-        });
-      }
-    } catch (error) {
-      console.error('Error loading deal:', error);
-      setError('Failed to load deal');
-    } finally {
-      setLoadingData(false);
-    }
-  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -103,11 +39,11 @@ export default function EditOffMarketDealPage() {
       const fileUrl = response.fileUrl;
       
       if (type === 'thumbnail') {
-        const fileType = file.type.startsWith('video/') ? 'video' : 'image';
+        const isVideo = file.type.startsWith('video/');
         setFormData(prev => ({
           ...prev,
           thumbnailUrl: fileUrl,
-          thumbnailType: fileType
+          thumbnailType: isVideo ? 'video' : 'image'
         }));
       } else if (type === 'image') {
         setFormData(prev => ({
@@ -124,22 +60,6 @@ export default function EditOffMarketDealPage() {
       setError(err.response?.data?.error || 'Failed to upload file');
     } finally {
       setUploading(false);
-    }
-  };
-
-  const handleThumbnailSelect = (mediaItem) => {
-    if (mediaItem.type === 'video') {
-      setFormData(prev => ({
-        ...prev,
-        thumbnailUrl: mediaItem.videoUrl,
-        thumbnailType: 'video'
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        thumbnailUrl: mediaItem.imageUrl || mediaItem.thumbnailUrl,
-        thumbnailType: 'image'
-      }));
     }
   };
 
@@ -200,6 +120,30 @@ export default function EditOffMarketDealPage() {
     e.target.value = ''; // Reset input
   };
 
+  const handleThumbnailUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      handleFileUpload(file, 'thumbnail');
+    }
+    e.target.value = ''; // Reset input
+  };
+
+  const handleThumbnailSelect = (mediaItem) => {
+    if (mediaItem.type === 'video') {
+      setFormData(prev => ({
+        ...prev,
+        thumbnailUrl: mediaItem.videoUrl,
+        thumbnailType: 'video'
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        thumbnailUrl: mediaItem.imageUrl || mediaItem.thumbnailUrl,
+        thumbnailType: 'image'
+      }));
+    }
+  };
+
   const removeImage = (index) => {
     setFormData(prev => ({
       ...prev,
@@ -220,32 +164,24 @@ export default function EditOffMarketDealPage() {
     setLoading(true);
 
     try {
-      await updateOffMarketDeal(id, formData);
-      router.push('/admin/off-market-deals');
+      await createBlog(formData);
+      router.push('/admin/blogs');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update deal');
+      setError(err.response?.data?.error || 'Failed to create blog post');
     } finally {
       setLoading(false);
     }
   };
-
-  if (loadingData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center space-x-4">
-            <Link href="/admin/off-market-deals" className="text-gray-600 hover:text-gray-900">
+            <Link href="/admin/blogs" className="text-gray-600 hover:text-gray-900">
               <FiArrowLeft className="text-xl" />
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Off-Market Deal</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Create Blog Post</h1>
           </div>
         </div>
       </div>
@@ -271,142 +207,39 @@ export default function EditOffMarketDealPage() {
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Excerpt</label>
+            <textarea
+              name="excerpt"
+              value={formData.excerpt}
+              onChange={handleChange}
+              rows="3"
+              className="input-field"
+              placeholder="Short summary or preview text (optional)"
+            ></textarea>
+            <p className="text-sm text-gray-500 mt-1">
+              A brief summary that will be shown on the blog listing page
+            </p>
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Content *</label>
             <textarea
               name="content"
               value={formData.content}
               onChange={handleChange}
-              rows="10"
+              rows="15"
               className="input-field"
               required
-              placeholder="Enter the deal description. You can use emojis, line breaks, and formatting..."
+              placeholder="Write your blog post content here. You can use line breaks, emojis, and formatting..."
             ></textarea>
-          </div>
-
-          {/* Property Details */}
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Property Details</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Property Type
-                </label>
-                <AutocompleteInput
-                  name="propertyType"
-                  value={formData.propertyType}
-                  onChange={handleChange}
-                  options={propertyTypeOptions}
-                  placeholder="Type or select property type..."
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {propertyTypeOptions.length > 0 
-                    ? `${propertyTypeOptions.length} existing ${propertyTypeOptions.length === 1 ? 'option' : 'options'} available`
-                    : 'Type to create a new property type'}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Sub-Type
-                </label>
-                <AutocompleteInput
-                  name="propertySubType"
-                  value={formData.propertySubType}
-                  onChange={handleChange}
-                  options={propertySubTypeOptions}
-                  placeholder="Type or select sub-type..."
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {propertySubTypeOptions.length > 0 
-                    ? `${propertySubTypeOptions.length} existing ${propertySubTypeOptions.length === 1 ? 'option' : 'options'} available`
-                    : 'Type to create a new sub-type'}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Area/Location</label>
-                <input
-                  type="text"
-                  name="area"
-                  value={formData.area}
-                  onChange={handleChange}
-                  className="input-field"
-                  placeholder="e.g., Indianapolis, IN"
-                />
-                <p className="text-xs text-gray-500 mt-1">Area or general location (not exact address)</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                <select
-                  name="status"
-                  value={formData.status}
-                  onChange={handleChange}
-                  className="input-field"
-                >
-                  <option value="open">Open</option>
-                  <option value="pending">Pending</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Contact Information */}
-          <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Name</label>
-                <input
-                  type="text"
-                  name="contactName"
-                  value={formData.contactName}
-                  onChange={handleChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Title</label>
-                <input
-                  type="text"
-                  name="contactTitle"
-                  value={formData.contactTitle}
-                  onChange={handleChange}
-                  className="input-field"
-                  placeholder="e.g., CEO / Broker"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Phone</label>
-                <input
-                  type="tel"
-                  name="contactPhone"
-                  value={formData.contactPhone}
-                  onChange={handleChange}
-                  className="input-field"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Contact Email</label>
-                <input
-                  type="email"
-                  name="contactEmail"
-                  value={formData.contactEmail}
-                  onChange={handleChange}
-                  className="input-field"
-                />
-              </div>
-            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              Full blog post content. Line breaks will be preserved.
+            </p>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Thumbnail (for listing page)</label>
-            <p className="text-xs text-gray-500 mb-2">This thumbnail will be shown on the off-market deals listing page. Can be an image or video.</p>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Thumbnail (Image or Video)</label>
+            <p className="text-xs text-gray-500 mb-2">This thumbnail will be shown on the blog listing page and homepage. Can be an image or video.</p>
             <div className="flex items-center gap-4 mb-4">
               <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer">
                 <FiUpload className="text-lg" />
@@ -414,13 +247,7 @@ export default function EditOffMarketDealPage() {
                 <input
                   type="file"
                   accept="image/*,video/*"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      handleFileUpload(file, 'thumbnail');
-                    }
-                    e.target.value = '';
-                  }}
+                  onChange={handleThumbnailUpload}
                   className="hidden"
                   disabled={uploading}
                 />
@@ -430,16 +257,17 @@ export default function EditOffMarketDealPage() {
                   {formData.thumbnailType === 'video' ? (
                     <video
                       src={formData.thumbnailUrl}
-                      className="w-full h-full object-cover rounded"
+                      className="w-full h-full object-contain rounded"
                       muted
                       loop
                       playsInline
+                      autoPlay
                     />
                   ) : (
                     <img
                       src={formData.thumbnailUrl}
                       alt="Thumbnail"
-                      className="w-full h-full object-cover rounded"
+                      className="w-full h-full object-contain rounded"
                     />
                   )}
                   <button
@@ -502,7 +330,7 @@ export default function EditOffMarketDealPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Images</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Additional Images</label>
             <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer w-fit mb-4">
               <FiUpload className="text-lg" />
               <span>Upload Image(s)</span>
@@ -573,41 +401,19 @@ export default function EditOffMarketDealPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="isActive"
-                checked={formData.isActive}
-                onChange={handleChange}
-                className="mr-2"
-              />
-              <label className="text-sm font-medium text-gray-700">Active</label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="isHotDeal"
-                checked={formData.isHotDeal}
-                onChange={handleChange}
-                className="mr-2"
-              />
-              <label className="text-sm font-medium text-gray-700">🔥 Hot Deal</label>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Display Order</label>
-              <input
-                type="number"
-                name="displayOrder"
-                value={formData.displayOrder}
-                onChange={handleChange}
-                className="input-field"
-              />
-            </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              name="isPublished"
+              checked={formData.isPublished}
+              onChange={handleChange}
+              className="mr-2"
+            />
+            <label className="text-sm font-medium text-gray-700">Publish immediately</label>
           </div>
 
           <div className="flex space-x-4 pt-4">
-            <Link href="/admin/off-market-deals" className="btn-secondary flex-1 text-center">
+            <Link href="/admin/blogs" className="btn-secondary flex-1 text-center">
               Cancel
             </Link>
             <button
@@ -615,7 +421,7 @@ export default function EditOffMarketDealPage() {
               disabled={loading || uploading}
               className="btn-primary flex-1"
             >
-              {loading ? 'Updating...' : uploading ? 'Uploading...' : 'Update Deal'}
+              {loading ? 'Creating...' : uploading ? 'Uploading...' : 'Create Post'}
             </button>
           </div>
         </form>

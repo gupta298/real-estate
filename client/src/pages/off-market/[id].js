@@ -31,23 +31,29 @@ export default function OffMarketDealDetailPage() {
     }
   };
 
+  // Combine images and videos into a single media array, sorted by displayOrder
+  const mediaItems = deal ? [
+    ...(deal.images || []).map(img => ({ ...img, type: 'image' })),
+    ...(deal.videos || []).map(vid => ({ ...vid, type: 'video' }))
+  ].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)) : [];
+
   // Keyboard navigation for lightbox - must be before any early returns
   useEffect(() => {
-    if (!isLightboxOpen || !deal?.images || deal.images.length === 0) return;
+    if (!isLightboxOpen || mediaItems.length === 0) return;
 
     const handleKeyPress = (e) => {
       if (e.key === 'Escape') {
         setIsLightboxOpen(false);
       } else if (e.key === 'ArrowLeft') {
-        setSelectedImageIndex((prev) => (prev - 1 + deal.images.length) % deal.images.length);
+        setSelectedImageIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
       } else if (e.key === 'ArrowRight') {
-        setSelectedImageIndex((prev) => (prev + 1) % deal.images.length);
+        setSelectedImageIndex((prev) => (prev + 1) % mediaItems.length);
       }
     };
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isLightboxOpen, deal?.images]);
+  }, [isLightboxOpen, mediaItems.length]);
 
   const formatContent = (content) => {
     return content.split('\n').map((line, i) => (
@@ -111,14 +117,14 @@ export default function OffMarketDealDetailPage() {
   };
 
   const nextImage = () => {
-    if (deal.images && deal.images.length > 0) {
-      setSelectedImageIndex((prev) => (prev + 1) % deal.images.length);
+    if (mediaItems.length > 0) {
+      setSelectedImageIndex((prev) => (prev + 1) % mediaItems.length);
     }
   };
 
   const prevImage = () => {
-    if (deal.images && deal.images.length > 0) {
-      setSelectedImageIndex((prev) => (prev - 1 + deal.images.length) % deal.images.length);
+    if (mediaItems.length > 0) {
+      setSelectedImageIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
     }
   };
 
@@ -135,15 +141,31 @@ export default function OffMarketDealDetailPage() {
         </Link>
 
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          {/* Main Image */}
-          {deal.images && deal.images.length > 0 && (
-            <div className="relative h-96 cursor-pointer" onClick={() => openLightbox(0)}>
-              <Image
-                src={deal.images[0].imageUrl || deal.images[0].thumbnailUrl}
-                alt={deal.title}
-                fill
-                className="object-cover"
-              />
+          {/* Main Media (Image or Video) */}
+          {mediaItems.length > 0 && (
+            <div className="relative h-96 cursor-pointer bg-black" onClick={() => openLightbox(0)}>
+              {mediaItems[0].type === 'video' ? (
+                <div className="w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                  <video
+                    src={mediaItems[0].videoUrl}
+                    className="w-full h-full object-contain"
+                    style={{ maxWidth: '100%', maxHeight: '100%' }}
+                    controls
+                    preload="auto"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <Image
+                    src={mediaItems[0].imageUrl || mediaItems[0].thumbnailUrl}
+                    alt={deal.title}
+                    fill
+                    className="object-contain"
+                  />
+                </div>
+              )}
               {deal.isHotDeal && (
                 <div className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold">
                   🔥 HOT DEAL
@@ -154,32 +176,57 @@ export default function OffMarketDealDetailPage() {
                   {getStatusBadge(deal.status)}
                 </div>
               )}
-              {deal.images.length > 1 && (
+              {mediaItems.length > 1 && (
                 <div className="absolute bottom-4 right-4 bg-black bg-opacity-50 text-white px-3 py-1 rounded text-sm">
-                  {deal.images.length} Photos
+                  {mediaItems.length} {mediaItems.length === 1 ? 'Item' : 'Items'}
                 </div>
               )}
             </div>
           )}
 
           {/* Thumbnail Gallery */}
-          {deal.images && deal.images.length > 1 && (
+          {mediaItems.length > 1 && (
             <div className="grid grid-cols-4 gap-2 p-4 bg-gray-50">
-              {deal.images.map((img, index) => (
+              {mediaItems.map((item, index) => (
                 <div
-                  key={index}
+                  key={item.id || index}
                   className="relative h-24 cursor-pointer hover:opacity-75 transition-opacity rounded overflow-hidden border-2 border-transparent hover:border-bf-blue"
                   onClick={() => {
                     setSelectedImageIndex(index);
                     openLightbox(index);
                   }}
                 >
-                  <Image
-                    src={img.thumbnailUrl || img.imageUrl}
-                    alt={`${deal.title} - Image ${index + 1}`}
-                    fill
-                    className="object-cover"
-                  />
+                  {item.type === 'video' ? (
+                    <div className="w-full h-full flex items-center justify-center bg-black">
+                      <video
+                        src={item.videoUrl}
+                        className="w-full h-full object-contain"
+                        style={{ maxWidth: '100%', maxHeight: '100%' }}
+                        muted
+                        onMouseEnter={(e) => e.target.play()}
+                        onMouseLeave={(e) => {
+                          e.target.pause();
+                          e.target.currentTime = 0;
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                      <Image
+                        src={item.thumbnailUrl || item.imageUrl}
+                        alt={`${deal.title} - ${item.type === 'video' ? 'Video' : 'Image'} ${index + 1}`}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                  )}
+                  {item.type === 'video' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30">
+                      <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                      </svg>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -261,7 +308,7 @@ export default function OffMarketDealDetailPage() {
       </div>
 
       {/* Lightbox Modal */}
-      {isLightboxOpen && deal.images && deal.images.length > 0 && (
+      {isLightboxOpen && mediaItems.length > 0 && (
         <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center" onClick={closeLightbox}>
           <div className="relative max-w-7xl w-full h-full flex items-center justify-center p-4">
             {/* Close Button */}
@@ -273,7 +320,7 @@ export default function OffMarketDealDetailPage() {
             </button>
 
             {/* Previous Button */}
-            {deal.images.length > 1 && (
+            {mediaItems.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -285,18 +332,27 @@ export default function OffMarketDealDetailPage() {
               </button>
             )}
 
-            {/* Main Image */}
+            {/* Main Media (Image or Video) */}
             <div className="relative w-full h-full max-h-[90vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-              <Image
-                src={deal.images[selectedImageIndex].imageUrl || deal.images[selectedImageIndex].thumbnailUrl}
-                alt={`${deal.title} - Image ${selectedImageIndex + 1}`}
-                fill
-                className="object-contain"
-              />
+              {mediaItems[selectedImageIndex].type === 'video' ? (
+                <video
+                  src={mediaItems[selectedImageIndex].videoUrl}
+                  controls
+                  className="max-w-full max-h-[90vh] object-contain"
+                  autoPlay
+                />
+              ) : (
+                <Image
+                  src={mediaItems[selectedImageIndex].imageUrl || mediaItems[selectedImageIndex].thumbnailUrl}
+                  alt={`${deal.title} - ${mediaItems[selectedImageIndex].type === 'video' ? 'Video' : 'Image'} ${selectedImageIndex + 1}`}
+                  fill
+                  className="object-contain"
+                />
+              )}
             </div>
 
             {/* Next Button */}
-            {deal.images.length > 1 && (
+            {mediaItems.length > 1 && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -308,19 +364,19 @@ export default function OffMarketDealDetailPage() {
               </button>
             )}
 
-            {/* Image Counter */}
-            {deal.images.length > 1 && (
+            {/* Media Counter */}
+            {mediaItems.length > 1 && (
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black bg-opacity-50 px-4 py-2 rounded">
-                {selectedImageIndex + 1} / {deal.images.length}
+                {selectedImageIndex + 1} / {mediaItems.length}
               </div>
             )}
 
             {/* Thumbnail Strip */}
-            {deal.images.length > 1 && (
+            {mediaItems.length > 1 && (
               <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 flex gap-2 max-w-4xl overflow-x-auto px-4">
-                {deal.images.map((img, index) => (
+                {mediaItems.map((item, index) => (
                   <div
-                    key={index}
+                    key={item.id || index}
                     className={`relative w-20 h-20 flex-shrink-0 cursor-pointer border-2 rounded overflow-hidden ${
                       index === selectedImageIndex ? 'border-white' : 'border-transparent opacity-50 hover:opacity-75'
                     }`}
@@ -329,12 +385,32 @@ export default function OffMarketDealDetailPage() {
                       setSelectedImageIndex(index);
                     }}
                   >
-                    <Image
-                      src={img.thumbnailUrl || img.imageUrl}
-                      alt={`Thumbnail ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
+                    {item.type === 'video' ? (
+                      <>
+                        <div className="w-full h-full flex items-center justify-center bg-black">
+                          <video
+                            src={item.videoUrl}
+                            className="w-full h-full object-contain"
+                            style={{ maxWidth: '100%', maxHeight: '100%' }}
+                            muted
+                          />
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-30 pointer-events-none">
+                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
+                          </svg>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-black">
+                        <Image
+                          src={item.thumbnailUrl || item.imageUrl}
+                          alt={`Thumbnail ${index + 1}`}
+                          fill
+                          className="object-contain"
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

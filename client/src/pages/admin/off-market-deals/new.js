@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { createOffMarketDeal, getOffMarketDealOptions } from '@/utils/api';
-import { FiArrowLeft, FiX } from 'react-icons/fi';
+import { createOffMarketDeal, getOffMarketDealOptions, uploadFile, uploadFiles } from '@/utils/api';
+import { FiArrowLeft, FiX, FiUpload } from 'react-icons/fi';
 import AutocompleteInput from '@/components/AutocompleteInput/AutocompleteInput';
 
 export default function NewOffMarketDealPage() {
@@ -20,12 +20,15 @@ export default function NewOffMarketDealPage() {
     contactPhone: '',
     contactEmail: '',
     contactTitle: '',
+    thumbnailUrl: '',
+    thumbnailType: '',
     isActive: true,
     isHotDeal: false,
     displayOrder: 0,
-    images: []
+    images: [],
+    videos: []
   });
-  const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
@@ -53,20 +56,123 @@ export default function NewOffMarketDealPage() {
     }));
   };
 
-  const addImage = () => {
-    if (imageUrl.trim()) {
+  const handleFileUpload = async (file, type) => {
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const response = await uploadFile(file);
+      const fileUrl = response.fileUrl;
+      
+      if (type === 'thumbnail') {
+        const fileType = file.type.startsWith('video/') ? 'video' : 'image';
+        setFormData(prev => ({
+          ...prev,
+          thumbnailUrl: fileUrl,
+          thumbnailType: fileType
+        }));
+      } else if (type === 'image') {
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, { imageUrl: fileUrl, thumbnailUrl: fileUrl }]
+        }));
+      } else if (type === 'video') {
+        setFormData(prev => ({
+          ...prev,
+          videos: [...prev.videos, { videoUrl: fileUrl }]
+        }));
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to upload file');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleThumbnailSelect = (mediaItem) => {
+    if (mediaItem.type === 'video') {
       setFormData(prev => ({
         ...prev,
-        images: [...prev.images, { imageUrl: imageUrl.trim(), thumbnailUrl: imageUrl.trim() }]
+        thumbnailUrl: mediaItem.videoUrl,
+        thumbnailType: 'video'
       }));
-      setImageUrl('');
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        thumbnailUrl: mediaItem.imageUrl || mediaItem.thumbnailUrl,
+        thumbnailType: 'image'
+      }));
     }
+  };
+
+  const handleMultipleFilesUpload = async (files, type) => {
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const fileArray = Array.from(files);
+      const response = await uploadFiles(fileArray);
+      
+      if (type === 'image') {
+        const newImages = response.files.map(file => ({
+          imageUrl: file.fileUrl,
+          thumbnailUrl: file.fileUrl
+        }));
+        setFormData(prev => ({
+          ...prev,
+          images: [...prev.images, ...newImages]
+        }));
+      } else if (type === 'video') {
+        const newVideos = response.files.map(file => ({
+          videoUrl: file.fileUrl
+        }));
+        setFormData(prev => ({
+          ...prev,
+          videos: [...prev.videos, ...newVideos]
+        }));
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to upload files');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      if (files.length === 1) {
+        handleFileUpload(files[0], 'image');
+      } else {
+        handleMultipleFilesUpload(files, 'image');
+      }
+    }
+    e.target.value = ''; // Reset input
+  };
+
+  const handleVideoUpload = (e) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      if (files.length === 1) {
+        handleFileUpload(files[0], 'video');
+      } else {
+        handleMultipleFilesUpload(files, 'video');
+      }
+    }
+    e.target.value = ''; // Reset input
   };
 
   const removeImage = (index) => {
     setFormData(prev => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const removeVideo = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      videos: prev.videos.filter((_, i) => i !== index)
     }));
   };
 
@@ -257,22 +363,18 @@ export default function NewOffMarketDealPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Images</label>
-            <div className="flex gap-2 mb-4">
+            <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer w-fit mb-4">
+              <FiUpload className="text-lg" />
+              <span>Upload Image(s)</span>
               <input
-                type="url"
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="Image URL"
-                className="input-field flex-1"
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                disabled={uploading}
+                multiple
               />
-              <button
-                type="button"
-                onClick={addImage}
-                className="btn-secondary"
-              >
-                Add Image
-              </button>
-            </div>
+            </label>
             {formData.images.length > 0 && (
               <div className="grid grid-cols-4 gap-2">
                 {formData.images.map((img, index) => (
@@ -285,6 +387,42 @@ export default function NewOffMarketDealPage() {
                     <button
                       type="button"
                       onClick={() => removeImage(index)}
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                    >
+                      <FiX className="text-xs" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Videos</label>
+            <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer w-fit mb-4">
+              <FiUpload className="text-lg" />
+              <span>Upload Video(s)</span>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={handleVideoUpload}
+                className="hidden"
+                disabled={uploading}
+                multiple
+              />
+            </label>
+            {formData.videos.length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
+                {formData.videos.map((vid, index) => (
+                  <div key={index} className="relative">
+                    <video
+                      src={vid.videoUrl}
+                      controls
+                      className="w-full h-48 object-cover rounded"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeVideo(index)}
                       className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
                     >
                       <FiX className="text-xs" />
@@ -334,10 +472,10 @@ export default function NewOffMarketDealPage() {
             </Link>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || uploading}
               className="btn-primary flex-1"
             >
-              {loading ? 'Creating...' : 'Create Deal'}
+              {loading ? 'Creating...' : uploading ? 'Uploading...' : 'Create Deal'}
             </button>
           </div>
         </form>

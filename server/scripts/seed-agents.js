@@ -178,45 +178,61 @@ const sampleAgents = generateAgents();
 function seedAgents() {
   console.log('🌱 Seeding agents...');
 
-  // Clear existing agents
-  db.run('DELETE FROM agents', (err) => {
+  // Disable foreign key constraints temporarily to allow deletion
+  db.run('PRAGMA foreign_keys = OFF', (err) => {
     if (err) {
-      console.error('Error clearing agents:', err);
+      console.error('Error disabling foreign keys:', err);
       process.exit(1);
     }
 
-    const stmt = db.prepare(`
-      INSERT INTO agents (
-        firstName, lastName, email, phone, licenseNumber, bio,
-        specialties, yearsExperience, profileImageUrl, isBroker, isActive, displayOrder
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    sampleAgents.forEach((agent) => {
-      stmt.run(
-        agent.firstName,
-        agent.lastName,
-        agent.email,
-        agent.phone,
-        agent.licenseNumber,
-        agent.bio,
-        agent.specialties,
-        agent.yearsExperience,
-        agent.profileImageUrl || null,
-        agent.isBroker ? 1 : 0,
-        agent.isActive ? 1 : 0,
-        agent.displayOrder
-      );
-    });
-
-    stmt.finalize((err) => {
+    // Clear existing agents
+    db.run('DELETE FROM agents', (err) => {
       if (err) {
-        console.error('Error seeding agents:', err);
-        process.exit(1);
-      } else {
-        console.log(`✅ ${sampleAgents.length} agents seeded successfully!`);
-        process.exit(0);
+        console.warn('Warning: Could not clear existing agents (may have foreign key references):', err.message);
+        // Continue anyway - we'll insert new agents
       }
+
+      // Re-enable foreign key constraints
+      db.run('PRAGMA foreign_keys = ON', (err) => {
+        if (err) {
+          console.error('Error re-enabling foreign keys:', err);
+          process.exit(1);
+        }
+
+        const stmt = db.prepare(`
+          INSERT INTO agents (
+            firstName, lastName, email, phone, licenseNumber, bio,
+            specialties, yearsExperience, profileImageUrl, isBroker, isActive, displayOrder
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+        sampleAgents.forEach((agent) => {
+          stmt.run(
+            agent.firstName,
+            agent.lastName,
+            agent.email,
+            agent.phone,
+            agent.licenseNumber,
+            agent.bio,
+            agent.specialties,
+            agent.yearsExperience,
+            agent.profileImageUrl || null,
+            agent.isBroker ? 1 : 0,
+            agent.isActive ? 1 : 0,
+            agent.displayOrder
+          );
+        });
+
+        stmt.finalize((err) => {
+          if (err) {
+            console.error('Error seeding agents:', err);
+            process.exit(1);
+          } else {
+            console.log(`✅ ${sampleAgents.length} agents seeded successfully!`);
+            process.exit(0);
+          }
+        });
+      });
     });
   });
 }

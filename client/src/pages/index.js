@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Autoplay } from 'swiper/modules';
-import { getFeaturedProperties, getOffMarketDeals, getAgents } from '@/utils/api';
+import { getFeaturedProperties, getOffMarketDeals, getAgents, getLatestBlogs } from '@/utils/api';
 
 // Import Swiper styles
 import 'swiper/css';
@@ -15,14 +15,17 @@ import 'swiper/css/pagination';
 export default function Home() {
   const [featuredProperties, setFeaturedProperties] = useState([]);
   const [offMarketDeals, setOffMarketDeals] = useState([]);
+  const [blogs, setBlogs] = useState([]);
   const [agents, setAgents] = useState([]);
   const [loadingFeatured, setLoadingFeatured] = useState(true);
   const [loadingOffMarket, setLoadingOffMarket] = useState(true);
+  const [loadingBlogs, setLoadingBlogs] = useState(true);
   const [loadingAgents, setLoadingAgents] = useState(true);
 
   useEffect(() => {
     loadFeaturedProperties();
     loadOffMarketDeals();
+    loadBlogs();
     loadAgents();
   }, []);
 
@@ -47,6 +50,18 @@ export default function Home() {
       console.error('Error loading off-market deals:', error);
     } finally {
       setLoadingOffMarket(false);
+    }
+  };
+
+  const loadBlogs = async () => {
+    try {
+      setLoadingBlogs(true);
+      const data = await getLatestBlogs(5);
+      setBlogs(data.blogs || []);
+    } catch (error) {
+      console.error('Error loading blogs:', error);
+    } finally {
+      setLoadingBlogs(false);
     }
   };
 
@@ -152,12 +167,14 @@ export default function Home() {
                       <div className="bg-white rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col">
                         <div className="relative w-full h-64">
                           {primaryImage ? (
-                            <Image
-                              src={primaryImage.imageUrl || primaryImage.thumbnailUrl}
-                              alt={property.title}
-                              fill
-                              className="object-cover"
-                            />
+                            <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                              <Image
+                                src={primaryImage.imageUrl || primaryImage.thumbnailUrl}
+                                alt={property.title}
+                                fill
+                                className="object-contain"
+                              />
+                            </div>
                           ) : (
                             <div className="w-full h-full bg-gray-200 flex items-center justify-center">
                               <span className="text-gray-400">No Image</span>
@@ -193,6 +210,145 @@ export default function Home() {
           ) : (
             <div className="text-center py-12 text-gray-500">
               No featured properties available at this time.
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Latest Blog Posts Section */}
+      <section className="py-16 bg-bf-light border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
+          <div className="px-4 sm:px-0 lg:px-0 mb-10 text-center sm:text-left">
+            <h2 className="text-3xl font-bold text-bf-blue mb-2 border-b-2 border-bf-gold pb-2 inline-block">
+              LATEST BLOG POSTS
+            </h2>
+            <p className="text-xl text-gray-600">
+              Stay updated with the latest news and insights from our team.
+            </p>
+          </div>
+
+          {loadingBlogs ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-bf-blue"></div>
+            </div>
+          ) : blogs.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 sm:px-0">
+              {blogs.map((blog) => {
+                // Combine images and videos, sorted by displayOrder
+                // Filter out duplicates if thumbnail matches an existing image/video
+                const mediaItems = [];
+                const thumbnailUrl = blog.thumbnailUrl;
+                
+                // Use thumbnail if available
+                if (thumbnailUrl) {
+                  if (blog.thumbnailType === 'video') {
+                    mediaItems.push({
+                      videoUrl: thumbnailUrl,
+                      thumbnailUrl: thumbnailUrl,
+                      type: 'video',
+                      displayOrder: -1
+                    });
+                  } else {
+                    mediaItems.push({
+                      imageUrl: thumbnailUrl,
+                      thumbnailUrl: thumbnailUrl,
+                      type: 'image',
+                      displayOrder: -1
+                    });
+                  }
+                }
+                
+                // Add images, filtering out duplicates of the thumbnail
+                if (blog.images && blog.images.length > 0) {
+                  const uniqueImages = blog.images.filter(img => {
+                    const imgUrl = img.imageUrl || img.thumbnailUrl;
+                    return !thumbnailUrl || imgUrl !== thumbnailUrl;
+                  });
+                  mediaItems.push(...uniqueImages.map(img => ({ ...img, type: 'image' })));
+                }
+                
+                // Add videos, filtering out duplicates of the thumbnail
+                if (blog.videos && blog.videos.length > 0) {
+                  const uniqueVideos = blog.videos.filter(vid => {
+                    return !thumbnailUrl || vid.videoUrl !== thumbnailUrl;
+                  });
+                  mediaItems.push(...uniqueVideos.map(vid => ({ ...vid, type: 'video' })));
+                }
+                
+                mediaItems.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                const primaryMedia = mediaItems[0];
+                
+                return (
+                  <Link
+                    key={blog.id}
+                    href="/blogs"
+                    className="bg-white rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col hover:shadow-xl"
+                  >
+                    {primaryMedia && (
+                      <div className="relative w-full h-48">
+                        {primaryMedia.type === 'video' ? (
+                          <div className="w-full h-full flex items-center justify-center bg-black">
+                            <video
+                              src={primaryMedia.videoUrl}
+                              className="w-full h-full object-contain"
+                              style={{ maxWidth: '100%', maxHeight: '100%' }}
+                              muted
+                              loop
+                              playsInline
+                              autoPlay
+                              preload="auto"
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                            <Image
+                              src={primaryMedia.imageUrl || primaryMedia.thumbnailUrl}
+                              alt={blog.title}
+                              fill
+                              className="object-contain"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div className="p-6 flex-grow flex flex-col">
+                      <p className="text-sm text-gray-500 mb-2">
+                        {new Date(blog.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
+                      <h3 className="text-xl font-bold text-bf-blue mb-3 line-clamp-2">
+                        {blog.title}
+                      </h3>
+                      <p className="text-gray-700 text-sm mb-4 line-clamp-3 flex-grow">
+                        {blog.excerpt || blog.content.replace(/\n/g, ' ').substring(0, 150)}...
+                      </p>
+                      <span className="text-bf-blue hover:text-bf-gold font-semibold text-sm">
+                        Read More →
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              No blog posts available at this time.
+            </div>
+          )}
+
+          {blogs.length > 0 && (
+            <div className="text-center mt-8 px-4 sm:px-0">
+              <Link
+                href="/blogs"
+                className="inline-block py-3 px-8 text-white bg-bf-blue hover:bg-bf-gold transition duration-300 rounded-lg font-semibold shadow-md"
+              >
+                View All Blog Posts
+              </Link>
             </div>
           )}
         </div>
@@ -247,22 +403,90 @@ export default function Home() {
                 className="off-market-swiper"
               >
                 {offMarketDeals.map((deal) => {
-                  const primaryImage = deal.images?.[0];
+                  // Use thumbnail if available, otherwise fall back to first media item
+                  const hasThumbnail = deal.thumbnailUrl && deal.thumbnailType;
+                  
                   return (
                     <SwiperSlide key={deal.id} style={{ width: '85%' }} className="md:!w-[500px]">
                       <div className="bg-bf-light rounded-xl shadow-lg transition duration-300 overflow-hidden h-full flex flex-col border border-gray-100">
                         <div className="relative w-full h-64">
-                          {primaryImage ? (
-                            <Image
-                              src={primaryImage.imageUrl || primaryImage.thumbnailUrl}
-                              alt={deal.title}
-                              fill
-                              className="object-cover"
-                            />
+                          {hasThumbnail ? (
+                            deal.thumbnailType === 'video' ? (
+                              <div className="w-full h-full flex items-center justify-center bg-black">
+                                <video
+                                  src={deal.thumbnailUrl}
+                                  className="w-full h-full object-contain"
+                                  style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                  muted
+                                  loop
+                                  playsInline
+                                  autoPlay
+                                  preload="auto"
+                                  onCanPlay={(e) => {
+                                    e.target.play().catch(() => {
+                                      // Autoplay blocked, that's okay
+                                    });
+                                  }}
+                                  onError={(e) => {
+                                    console.error('Video load error for URL:', deal.thumbnailUrl);
+                                    console.error('Error code:', e.target.error?.code);
+                                    console.error('Error message:', e.target.error?.message);
+                                  }}
+                                >
+                                  Your browser does not support the video tag.
+                                </video>
+                              </div>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                <Image
+                                  src={deal.thumbnailUrl}
+                                  alt={deal.title}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                            )
                           ) : (
-                            <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                              <span className="text-gray-400">No Image</span>
-                            </div>
+                            (() => {
+                              // Fallback to first media item
+                              const mediaItems = [
+                                ...(deal.images || []).map(img => ({ ...img, type: 'image' })),
+                                ...(deal.videos || []).map(vid => ({ ...vid, type: 'video' }))
+                              ].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                              const primaryMedia = mediaItems[0];
+                              
+                              return primaryMedia ? (
+                                primaryMedia.type === 'video' ? (
+                                  <div className="w-full h-full flex items-center justify-center bg-black">
+                                    <video
+                                      src={primaryMedia.videoUrl}
+                                      className="w-full h-full object-contain"
+                                      style={{ maxWidth: '100%', maxHeight: '100%' }}
+                                      muted
+                                      loop
+                                      playsInline
+                                      autoPlay
+                                      preload="auto"
+                                    >
+                                      Your browser does not support the video tag.
+                                    </video>
+                                  </div>
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                <Image
+                                  src={primaryMedia.imageUrl || primaryMedia.thumbnailUrl}
+                                  alt={deal.title}
+                                  fill
+                                  className="object-contain"
+                                />
+                              </div>
+                            )
+                              ) : (
+                                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                                  <span className="text-gray-400">No Media</span>
+                                </div>
+                              );
+                            })()
                           )}
                           {deal.isHotDeal && (
                             <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
@@ -436,13 +660,15 @@ export default function Home() {
                   >
                     <div className="relative h-64">
                       {agent.profileImageUrl ? (
-                        <Image
-                          src={agent.profileImageUrl}
-                          alt={`${agent.firstName} ${agent.lastName}`}
-                          fill
-                          className="object-cover"
-                          loading="lazy"
-                        />
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                          <Image
+                            src={agent.profileImageUrl}
+                            alt={`${agent.firstName} ${agent.lastName}`}
+                            fill
+                            className="object-contain"
+                            loading="lazy"
+                          />
+                        </div>
                       ) : (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center">
                           <span className="text-gray-400 text-2xl font-bold">

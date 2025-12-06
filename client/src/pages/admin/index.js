@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { getCurrentUser } from '@/utils/api';
-import { FiHome, FiBriefcase, FiSettings, FiLogOut } from 'react-icons/fi';
+import { FiHome, FiBriefcase, FiSettings, FiLogOut, FiFileText } from 'react-icons/fi';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -77,7 +77,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* Featured Listings Management */}
           <Link
             href="/admin/featured-listings"
@@ -127,6 +127,24 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-bold text-gray-900">Seller Inquiries</h2>
                 <p className="text-gray-600 text-sm mt-1">
                   Manage property evaluation requests
+                </p>
+              </div>
+            </div>
+          </Link>
+
+          {/* Blog Management */}
+          <Link
+            href="/admin/blogs"
+            className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl transition-shadow"
+          >
+            <div className="flex items-center space-x-4">
+              <div className="bg-primary-100 p-4 rounded-lg">
+                <FiFileText className="text-primary-600 text-2xl" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Blog Posts</h2>
+                <p className="text-gray-600 text-sm mt-1">
+                  Create and manage blog posts
                 </p>
               </div>
             </div>

@@ -19,7 +19,19 @@ router.get('/', (req, res) => {
       )
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
-      ORDER BY img.displayOrder) as images
+      ORDER BY img.displayOrder) as images,
+      (SELECT json_group_array(
+        json_object(
+          'id', vid.id,
+          'videoUrl', vid.videoUrl,
+          'thumbnailUrl', vid.thumbnailUrl,
+          'displayOrder', vid.displayOrder,
+          'caption', vid.caption
+        )
+      )
+      FROM off_market_deal_videos vid
+      WHERE vid.dealId = d.id
+      ORDER BY vid.displayOrder) as videos
     FROM off_market_deals d
     WHERE d.isActive = 1
   `;
@@ -51,6 +63,9 @@ router.get('/', (req, res) => {
     const deals = rows.map(row => ({
       ...row,
       images: row.images ? JSON.parse(row.images) : [],
+      videos: row.videos ? JSON.parse(row.videos) : [],
+      thumbnailUrl: row.thumbnailUrl || null,
+      thumbnailType: row.thumbnailType || null,
       isHotDeal: row.isHotDeal === 1
     }));
 
@@ -75,7 +90,19 @@ router.get('/:id', (req, res) => {
       )
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
-      ORDER BY img.displayOrder) as images
+      ORDER BY img.displayOrder) as images,
+      (SELECT json_group_array(
+        json_object(
+          'id', vid.id,
+          'videoUrl', vid.videoUrl,
+          'thumbnailUrl', vid.thumbnailUrl,
+          'displayOrder', vid.displayOrder,
+          'caption', vid.caption
+        )
+      )
+      FROM off_market_deal_videos vid
+      WHERE vid.dealId = d.id
+      ORDER BY vid.displayOrder) as videos
     FROM off_market_deals d
     WHERE d.id = ? AND d.isActive = 1
   `;
@@ -93,6 +120,9 @@ router.get('/:id', (req, res) => {
     const deal = {
       ...row,
       images: row.images ? JSON.parse(row.images) : [],
+      videos: row.videos ? JSON.parse(row.videos) : [],
+      thumbnailUrl: row.thumbnailUrl || null,
+      thumbnailType: row.thumbnailType || null,
       isHotDeal: row.isHotDeal === 1
     };
 

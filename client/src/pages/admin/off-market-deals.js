@@ -400,17 +400,78 @@ export default function OffMarketDealsPage() {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayedDeals.map((deal) => {
-              const primaryImage = deal.images?.[0];
+              // Use thumbnail if available, otherwise fall back to first media item
+              const hasThumbnail = deal.thumbnailUrl && deal.thumbnailType;
+              
               return (
                 <div key={deal.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-                  {primaryImage && (
+                  {(hasThumbnail || deal.images?.[0] || deal.videos?.[0]) && (
                     <div className="relative h-48">
-                      <Image
-                        src={primaryImage.imageUrl || primaryImage.thumbnailUrl}
-                        alt={deal.title}
-                        fill
-                        className="object-cover"
-                      />
+                      {hasThumbnail ? (
+                        deal.thumbnailType === 'video' ? (
+                          <div className="w-full h-full flex items-center justify-center bg-black">
+                            <video
+                              src={deal.thumbnailUrl}
+                              className="w-full h-full object-contain"
+                              style={{ maxWidth: '100%', maxHeight: '100%' }}
+                              muted
+                              loop
+                              playsInline
+                              autoPlay
+                              preload="auto"
+                              onCanPlay={(e) => {
+                                e.target.play().catch(() => {});
+                              }}
+                              onError={(e) => {
+                                console.error('Video load error:', deal.thumbnailUrl);
+                              }}
+                            >
+                              Your browser does not support the video tag.
+                            </video>
+                          </div>
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                            <Image
+                              src={deal.thumbnailUrl}
+                              alt={deal.title}
+                              fill
+                              className="object-contain"
+                            />
+                          </div>
+                        )
+                      ) : (
+                        (() => {
+                          // Fallback to first media item
+                          const mediaItems = [
+                            ...(deal.images || []).map(img => ({ ...img, type: 'image' })),
+                            ...(deal.videos || []).map(vid => ({ ...vid, type: 'video' }))
+                          ].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+                          const primaryMedia = mediaItems[0];
+                          
+                          return primaryMedia ? (
+                            primaryMedia.type === 'video' ? (
+                              <video
+                                src={primaryMedia.videoUrl}
+                                className="w-full h-full object-cover"
+                                muted
+                                loop
+                                playsInline
+                                autoPlay
+                                preload="metadata"
+                              />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                            <Image
+                              src={primaryMedia.imageUrl || primaryMedia.thumbnailUrl}
+                              alt={deal.title}
+                              fill
+                              className="object-contain"
+                            />
+                          </div>
+                        )
+                          ) : null;
+                        })()
+                      )}
                       {deal.isHotDeal && (
                         <div className="absolute top-2 right-2 bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">
                           🔥 HOT DEAL

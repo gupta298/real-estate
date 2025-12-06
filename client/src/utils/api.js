@@ -195,5 +195,84 @@ export const deleteSellerInquiry = async (id) => {
   return response.data;
 };
 
+// Blogs API (public)
+export const getBlogs = async () => {
+  const response = await api.get('/blogs');
+  return response.data;
+};
+
+export const getLatestBlogs = async (limit = 5) => {
+  const response = await api.get('/blogs/latest', { params: { limit } });
+  return response.data;
+};
+
+export const getBlogById = async (id) => {
+  const response = await api.get(`/blogs/${id}`);
+  return response.data;
+};
+
+// Admin Blogs API
+export const getAdminBlogs = async () => {
+  const response = await api.get('/admin/blogs');
+  return response.data;
+};
+
+export const getAdminBlog = async (id) => {
+  const response = await api.get(`/admin/blogs/${id}`);
+  return response.data;
+};
+
+export const createBlog = async (blogData) => {
+  const response = await api.post('/admin/blogs', blogData);
+  return response.data;
+};
+
+export const updateBlog = async (id, blogData) => {
+  const response = await api.put(`/admin/blogs/${id}`, blogData);
+  return response.data;
+};
+
+export const deleteBlog = async (id) => {
+  const response = await api.delete(`/admin/blogs/${id}`);
+  return response.data;
+};
+
+// File Upload API
+export const uploadFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  // Create a custom axios instance for file uploads to avoid Content-Type header issues
+  const token = localStorage.getItem('token');
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  
+  const response = await axios.post(`${API_URL}/upload/file`, formData, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+      // Don't set Content-Type - let browser set it with boundary
+    },
+  });
+  return response.data;
+};
+
+export const uploadFiles = async (files) => {
+  const formData = new FormData();
+  files.forEach(file => {
+    formData.append('files', file);
+  });
+
+  // Create a custom axios instance for file uploads to avoid Content-Type header issues
+  const token = localStorage.getItem('token');
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  
+  const response = await axios.post(`${API_URL}/upload/files`, formData, {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+      // Don't set Content-Type - let browser set it with boundary
+    },
+  });
+  return response.data;
+};
+
 export default api;
 
