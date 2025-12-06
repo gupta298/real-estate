@@ -577,13 +577,6 @@ export default function BlogsSimplePage() {
             )}
           </>
         )}
-        
-        {/* Link back to main blog */}
-        <div className="mt-8 text-center">
-          <a href="/blogs" className="text-bf-blue hover:text-bf-gold font-semibold">
-            View full blog experience &rarr;
-          </a>
-        </div>
       </div>
 
       {/* Lightbox Modal */}

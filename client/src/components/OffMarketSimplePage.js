@@ -91,6 +91,40 @@ export default function OffMarketSimplePage() {
       slideshowIntervalRef.current = null;
     }
     
+    // Initialize all slideshows first
+    const slideshows = document.querySelectorAll('.swiper-wrapper');
+    if (!slideshows || slideshows.length === 0) return;
+    
+    slideshows.forEach(slideshow => {
+      if (!slideshow) return;
+      const slides = slideshow.querySelectorAll('.swiper-slide');
+      if (!slides || slides.length === 0) return;
+      
+      // Make sure the first slide has active class
+      slides.forEach((slide, index) => {
+        if (index === 0) {
+          slide.classList.add('swiper-slide-active');
+        } else {
+          slide.classList.remove('swiper-slide-active');
+        }
+      });
+      
+      // Initialize pagination
+      const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
+      if (paginationContainer) {
+        const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
+        if (bullets && bullets.length) {
+          bullets.forEach((b, index) => {
+            if (index === 0) {
+              b.classList.add('swiper-pagination-bullet-active');
+            } else {
+              b.classList.remove('swiper-pagination-bullet-active');
+            }
+          });
+        }
+      }
+    });
+    
     // Create slideshow interval - advance slides every 5 seconds
     const intervalId = setInterval(() => {
       try {
@@ -352,7 +386,10 @@ export default function OffMarketSimplePage() {
     
     // Set up slideshow once data is loaded
     if (!state.loading && Array.isArray(state.allDeals) && state.allDeals.length > 0) {
-      setupSlideshow();
+      // Use setTimeout to ensure the DOM has been updated with all slides
+      setTimeout(() => {
+        setupSlideshow();
+      }, 100);
     }
     
     // Add visibility change listener
@@ -532,12 +569,13 @@ export default function OffMarketSimplePage() {
       height: 100%;
       position: relative;
       transition-property: transform;
-      display: block;
-      opacity: 0;
+      display: none;
+      opacity: 1;
       transition: opacity 0.3s ease;
     }
     
     .swiper-slide-active {
+      display: block;
       opacity: 1;
     }
   `;
@@ -586,16 +624,6 @@ export default function OffMarketSimplePage() {
             <p className="text-lg text-gray-600">
               Exclusive investment opportunities not available on the MLS
             </p>
-          </div>
-          
-          {/* Contact CTA */}
-          <div className="mt-4 md:mt-0">
-            <a 
-              href="/contact" 
-              className="inline-block bg-bf-gold text-white font-bold py-3 px-6 rounded-lg hover:bg-yellow-600 transition-colors"
-            >
-              Contact Us About Off-Market Deals
-            </a>
           </div>
         </div>
         
@@ -851,7 +879,7 @@ export default function OffMarketSimplePage() {
                         <div className="swiper swiper-initialized swiper-horizontal h-full w-full">
                           <div className="swiper-wrapper">
                             {allMedia.map((item, index) => (
-                              <div key={`${deal.id}-media-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`} style={{ width: '100%' }}>
+                              <div key={`${deal.id}-media-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`}>
                                 <div className="w-full h-full">
                                   {item.type === 'video' ? (
                                     <div className="w-full h-full flex items-center justify-center bg-black">
@@ -982,13 +1010,6 @@ export default function OffMarketSimplePage() {
             )}
           </div>
         )}
-        
-        {/* Link back to main page */}
-        <div className="mt-8 text-center">
-          <a href="/off-market" className="text-bf-blue hover:text-bf-gold font-semibold">
-            View full off-market experience →
-          </a>
-        </div>
       </div>
 
       {/* Lightbox Modal */}
