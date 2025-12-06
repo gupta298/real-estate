@@ -1,100 +1,138 @@
 import { useState, useEffect } from 'react';
 import { getOffMarketDeals } from '@/utils/api';
-import SubdomainMeta from './SubdomainMeta';
-import { useRouter } from 'next/router';
-import { forceBaseUrl } from '@/utils/apiConfig';
+import { isSubdomain } from '@/utils/subdomainRouting';
 
 /**
- * Simplified Off-Market component specifically for subdomain display
- * This removes many UI elements for a cleaner, more focused view
+ * Simple off-market listing page with proper styling but minimal React dependencies
+ * to troubleshoot React rendering issues
  */
-export default function SubdomainOffMarket() {
-  const router = useRouter();
-  const [deals, setDeals] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isInIframe, setIsInIframe] = useState(false);
-  const [loadAttempts, setLoadAttempts] = useState(0);
-  const [loadError, setLoadError] = useState(null);
-  const [expandedDeals, setExpandedDeals] = useState({});
-  const [expandedImages, setExpandedImages] = useState({});
-
+export default function OffMarketSimplePage() {
+  // Use a single state object to minimize hooks
+  const [state, setState] = useState({
+    deals: [],
+    loading: true,
+    error: null,
+    isInIframe: false,
+    expandedDeals: {}, // Track which deals are expanded
+    expandedImages: {} // Track which images are expanded
+  });
+  
+  // Check if we're on a subdomain
+  const isOnSubdomain = isSubdomain('offmarket');
+  
   useEffect(() => {
-    // Initial load
+    // Flag to track component mount state
+    let isActive = true;
+    
+    // Check if in iframe
+    if (typeof window !== 'undefined') {
+      setState(prev => ({
+        ...prev,
+        isInIframe: window.self !== window.top
+      }));
+    }
+    
+    // Set page title
+    if (typeof document !== 'undefined') {
+      document.title = 'Off-Market Deals | Blue Flag Indy';
+    }
+    
+    // Load deals on component mount
+    async function loadDeals() {
+      try {
+        console.log('Loading off-market deals via explicit API path...');
+        const data = await getOffMarketDeals();
+        console.log('Off-market data received:', data);
+        
+        if (isActive) {
+          if (data?.deals) {
+            setState(prev => ({
+              ...prev,
+              deals: data.deals,
+              loading: false
+            }));
+          } else {
+            setState(prev => ({
+              ...prev,
+              error: 'No deals found',
+              loading: false
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Error loading off-market deals:', err);
+        if (isActive) {
+          setState(prev => ({
+            ...prev,
+            error: err.message || 'Failed to load off-market deals',
+            loading: false
+          }));
+        }
+      }
+    }
+    
     loadDeals();
     
-    // Detect if we're in an iframe
-    setIsInIframe(window.self !== window.top);
-    
-    // Add automatic fallback if first load fails
-    const fallbackTimer = setTimeout(() => {
-      if (deals.length === 0 && loadAttempts === 1) {
-        console.log('SubdomainOffMarket: No deals loaded on first attempt, trying fallback...');
-        loadDeals(true); // Try with fallback URL
-      }
-    }, 3000); // Wait 3 seconds before trying fallback
-    
-    return () => clearTimeout(fallbackTimer);
+    // Cleanup function to prevent memory leaks
+    return () => {
+      isActive = false;
+    };
   }, []);
-
-  const loadDeals = async (tryFallback = false) => {
-    try {
-      console.log(`SubdomainOffMarket: Loading deals (attempt ${loadAttempts + 1})...`);
-      setLoading(true);
-      setLoadError(null);
-      
-      // Log attempt information
-      if (tryFallback && loadAttempts > 0) {
-        console.log('SubdomainOffMarket: Retry attempt with current configuration');
-        // We're no longer forcing API URL changes here
-      }
-      
-      const data = await getOffMarketDeals({});
-      console.log('SubdomainOffMarket: API response:', data);
-      
-      if (data && data.deals && Array.isArray(data.deals)) {
-        console.log(`SubdomainOffMarket: Successfully loaded ${data.deals.length} deals`);
-        setDeals(data.deals);
-      } else {
-        console.error('SubdomainOffMarket: Invalid response format, deals array not found', data);
-        setLoadError('Received invalid data format from server');
-        setDeals([]);
-      }
-    } catch (error) {
-      console.error('SubdomainOffMarket: Error loading off-market deals:', error);
-      setLoadError(error.message || 'Failed to load deals');
-      setDeals([]);
-    } finally {
-      setLoading(false);
-      setLoadAttempts(prev => prev + 1);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="text-center py-12">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-bf-blue"></div>
-        <p className="mt-4 text-gray-600">Loading off-market deals...</p>
-      </div>
-    );
+  
+  // Handle retry
+  function handleRetry() {
+    setState(prev => ({ ...prev, loading: true, error: null }));
+    getOffMarketDeals()
+      .then(data => {
+        if (data?.deals) {
+          setState(prev => ({
+            ...prev,
+            deals: data.deals,
+            loading: false
+          }));
+        } else {
+          setState(prev => ({
+            ...prev,
+            error: 'No deals found',
+            loading: false
+          }));
+        }
+      })
+      .catch(err => {
+        setState(prev => ({
+          ...prev,
+          error: err.message || 'Failed to load off-market deals',
+          loading: false
+        }));
+      });
   }
 
   // Toggle deal expansion
-  const toggleDealExpansion = (dealId) => {
-    setExpandedDeals(prev => ({
+  function toggleDealExpansion(dealId) {
+    setState(prev => ({
       ...prev,
-      [dealId]: !prev[dealId]
+      expandedDeals: {
+        ...prev.expandedDeals,
+        [dealId]: !prev.expandedDeals[dealId]
+      }
     }));
-  };
+  }
   
   // Toggle image expansion
-  const toggleImageExpansion = (imageId) => {
-    setExpandedImages(prev => ({
+  function toggleImageExpansion(imageId) {
+    setState(prev => ({
       ...prev,
-      [imageId]: !prev[imageId]
+      expandedImages: {
+        ...prev.expandedImages,
+        [imageId]: !prev.expandedImages[imageId]
+      }
     }));
-  };
+  }
   
-  // Custom CSS for deal content
+  // Destructure state for easier access
+  const { deals, loading, error, isInIframe, expandedDeals, expandedImages } = state;
+  
+  // Custom CSS for content
   const contentStyle = `
     .deal-content p {
       margin-bottom: 1rem;
@@ -138,28 +176,48 @@ export default function SubdomainOffMarket() {
   `;
   
   return (
-    <div className="bg-white py-8 subdomain-view">
+    <div className="bg-white py-8">
       {/* Add custom CSS */}
       <style dangerouslySetInnerHTML={{ __html: contentStyle }} />
-      <SubdomainMeta 
-        title="Off-Market Deals | Blue Flag Indy" 
-        description="Exclusive business opportunities and properties not listed on MLS" 
-      />
       <div className="container mx-auto px-4">
         <h1 className="text-3xl font-bold text-bf-blue mb-6">Off-Market Deals</h1>
         <p className="text-lg text-gray-600 mb-8">
           Exclusive business opportunities and properties not listed on MLS
         </p>
+        
         {/* Debug info */}
         {process.env.NODE_ENV !== 'production' && (
           <div className="bg-gray-100 p-4 mb-6 rounded-lg text-xs">
             <p><strong>Debug Info:</strong></p>
             <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
             <p>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}</p>
+            <p>Simple version with minimal React hooks</p>
           </div>
         )}
-
-        {deals && deals.length > 0 ? (
+        
+        {/* Loading state */}
+        {loading && (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-bf-blue"></div>
+            <p className="mt-4 text-gray-600">Loading off-market deals...</p>
+          </div>
+        )}
+        
+        {/* Error state */}
+        {!loading && error && (
+          <div className="text-center py-12 bg-gray-50 rounded-lg">
+            <p className="text-gray-500 text-lg">Error: {error}</p>
+            <button 
+              onClick={handleRetry}
+              className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        
+        {/* Deal list */}
+        {!loading && !error && deals.length > 0 ? (
           <div className="space-y-8">
             {deals.map((deal) => (
               <div key={deal.id} className="border rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow">
@@ -283,22 +341,23 @@ export default function SubdomainOffMarket() {
               </div>
             ))}
           </div>
-        ) : (
+        ) : (!loading && !error) ? (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">
-              {loading ? 'Loading...' : loadError ? `Error: ${loadError}` : 'No off-market deals available at the moment.'}
-            </p>
-            <button 
-              onClick={() => loadDeals(loadAttempts > 0)}
-              className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
-            >
-              Retry
-            </button>
-            <div className="mt-4">
-              <a href="/off-market/index.simple" className="text-blue-500 underline">
-                View Simple Version
+            <p className="text-gray-500 text-lg">No off-market deals available at the moment.</p>
+            <div className="mt-6">
+              <a href="/off-market/" className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors">
+                Back to Main Off-Market Deals
               </a>
             </div>
+          </div>
+        ) : null}
+        
+        {/* Footer navigation */}
+        {!loading && deals.length > 0 && (
+          <div className="mt-10 text-center border-t pt-6">
+            <a href="/off-market/" className="px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors">
+              Back to Main Off-Market Deals
+            </a>
           </div>
         )}
       </div>
