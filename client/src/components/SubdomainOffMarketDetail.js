@@ -36,10 +36,20 @@ export default function SubdomainOffMarketDetail({ id }) {
       setLoading(true);
       setError(null);
       const data = await getOffMarketDealById(id);
-      setDeal(data.deal || null);
+      
+      if (!data.deal) {
+        console.log('Deal not found in SubdomainOffMarketDetail, redirecting');
+        // Redirect to off-market index page
+        handleBackToListing();
+        return;
+      }
+      
+      setDeal(data.deal);
     } catch (error) {
       console.error('Error loading off-market deal:', error);
       setError('Failed to load deal details. Please try again later.');
+      // On error, also redirect after a short delay
+      setTimeout(() => handleBackToListing(), 2000);
     } finally {
       setLoading(false);
     }
@@ -52,7 +62,13 @@ export default function SubdomainOffMarketDetail({ id }) {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  // Handler for back button click and automatic redirects
   const handleBackClick = () => {
+    handleBackToListing();
+  };
+  
+  // Common function for handling navigation back to the listing page
+  const handleBackToListing = () => {
     if (isInIframe) {
       // In iframe, use client-side routing
       router.push('/off-market/index.simple');
@@ -81,16 +97,14 @@ export default function SubdomainOffMarketDetail({ id }) {
     );
   }
 
+  // If there's an error or no deal, show a message briefly before redirecting
+  // We're already initiating redirect in loadDeal function
   if (error || !deal) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-lg">
-        <p className="text-red-500 text-lg">{error || 'Deal not found'}</p>
-        <button
-          onClick={handleBackClick}
-          className="mt-4 inline-block bg-bf-blue hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded"
-        >
-          Back to Off-Market Deals
-        </button>
+        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-bf-blue mb-4"></div>
+        <p className="text-gray-500 text-lg">{error || 'Deal not found'}</p>
+        <p className="text-gray-400 mt-2">Redirecting to Off-Market Deals...</p>
       </div>
     );
   }
