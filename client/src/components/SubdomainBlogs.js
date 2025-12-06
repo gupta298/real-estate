@@ -11,24 +11,56 @@ export default function SubdomainBlogs() {
   const router = useRouter();
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [loadAttempts, setLoadAttempts] = useState(0);
   const [isInIframe, setIsInIframe] = useState(false);
 
   useEffect(() => {
+    // Initial load
     loadBlogs();
     
     // Detect if we're in an iframe
     setIsInIframe(window.self !== window.top);
+    
+    // Add automatic fallback if first load fails
+    const fallbackTimer = setTimeout(() => {
+      if (blogs.length === 0 && loadAttempts === 1) {
+        console.log('SubdomainBlogs: No blogs loaded on first attempt, trying again...');
+        loadBlogs(true); // Try retry
+      }
+    }, 3000); // Wait 3 seconds before retrying
+    
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
-  const loadBlogs = async () => {
+  const loadBlogs = async (retry = false) => {
     try {
+      console.log(`SubdomainBlogs: Loading blogs (attempt ${loadAttempts + 1})...`);
       setLoading(true);
+      setLoadError(null);
+      
+      if (retry && loadAttempts > 0) {
+        console.log('SubdomainBlogs: Retry attempt');
+      }
+      
       const data = await getBlogs();
-      setBlogs(data.blogs || []);
+      console.log('SubdomainBlogs: API response:', data);
+      
+      if (data && data.blogs && Array.isArray(data.blogs)) {
+        console.log(`SubdomainBlogs: Successfully loaded ${data.blogs.length} blogs`);
+        setBlogs(data.blogs);
+      } else {
+        console.error('SubdomainBlogs: Invalid response format, blogs array not found', data);
+        setLoadError('Received invalid data format from server');
+        setBlogs([]);
+      }
     } catch (error) {
-      console.error('Error loading blogs:', error);
+      console.error('SubdomainBlogs: Error loading blogs:', error);
+      setLoadError(error.message || 'Failed to load blogs');
+      setBlogs([]);
     } finally {
       setLoading(false);
+      setLoadAttempts(prev => prev + 1);
     }
   };
 
@@ -59,6 +91,16 @@ export default function SubdomainBlogs() {
           Real estate insights, market trends, and news
         </p>
 
+        {/* Debug info */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="bg-gray-100 p-4 mb-6 rounded-lg text-xs">
+            <p><strong>Debug Info:</strong></p>
+            <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
+            <p>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}</p>
+            <p>Load attempts: {loadAttempts}</p>
+          </div>
+        )}
+        
         {blogs.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {blogs.map((blog) => (
@@ -105,7 +147,15 @@ export default function SubdomainBlogs() {
           </div>
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">No blog posts available at the moment.</p>
+            <p className="text-gray-500 text-lg">
+              {loading ? 'Loading...' : loadError ? `Error: ${loadError}` : 'No blog posts available at the moment.'}
+            </p>
+            <button 
+              onClick={() => loadBlogs(loadAttempts > 0)}
+              className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
+            >
+              {loadAttempts > 0 ? 'Try Again' : 'Retry'}
+            </button>
           </div>
         )}
       </div>

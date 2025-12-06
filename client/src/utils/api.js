@@ -302,19 +302,60 @@ export const deleteSellerInquiry = async (id) => {
 };
 
 // Blogs API (public)
-export const getBlogs = async () => {
-  const response = await api.get('/blogs');
-  return response.data;
+export const getBlogs = async (params = {}) => {
+  try {
+    console.log(`[API] Fetching blogs from: ${API_URL} with params:`, params);
+    console.log(`[API] Full URL being used: ${API_URL}/blogs`);
+    
+    const response = await api.get('/blogs', { params });
+    console.log(`[API] Got blogs: ${response.status} ${response.data?.blogs?.length || 0} items`);
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error loading blogs:', error);
+    
+    // If we get a detailed error response, log it
+    if (error.response) {
+      console.error('[API] Error response:', error.response.status, error.response.data);
+    }
+    
+    throw error;
+  }
 };
 
 export const getLatestBlogs = async (limit = 5) => {
-  const response = await api.get('/blogs/latest', { params: { limit } });
-  return response.data;
+  try {
+    console.log(`[API] Fetching latest blogs from: ${API_URL} with limit: ${limit}`);
+    const response = await api.get('/blogs/latest', { params: { limit } });
+    console.log(`[API] Got latest blogs: ${response.status} ${response.data?.blogs?.length || 0} items`);
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error loading latest blogs:', error);
+    
+    // If we get a detailed error response, log it
+    if (error.response) {
+      console.error('[API] Error response:', error.response.status, error.response.data);
+    }
+    
+    throw error;
+  }
 };
 
 export const getBlogById = async (id) => {
-  const response = await api.get(`/blogs/${id}`);
-  return response.data;
+  try {
+    console.log(`[API] Fetching blog ${id} from: ${API_URL}`);
+    const response = await api.get(`/blogs/${id}`);
+    console.log(`[API] Got blog: ${response.status}`, response.data?.blog?.title || 'no blog');
+    return response.data;
+  } catch (error) {
+    console.error(`[API] Error loading blog ${id}:`, error);
+    
+    // If we get a detailed error response, log it
+    if (error.response) {
+      console.error('[API] Error response:', error.response.status, error.response.data);
+    }
+    
+    throw error;
+  }
 };
 
 // Admin Blogs API

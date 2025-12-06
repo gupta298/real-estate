@@ -4,6 +4,11 @@ const db = require('../database/db');
 
 // Get all published blogs (public) - sorted by latest
 router.get('/', (req, res) => {
+  console.log(`[${new Date().toISOString()}] GET /blogs request from: ${req.get('x-request-origin') || req.get('host') || 'unknown'}`);
+  
+  // Set correct content type
+  res.setHeader('Content-Type', 'application/json');
+  
   const query = `
     SELECT b.*,
       (SELECT json_group_array(
@@ -38,7 +43,8 @@ router.get('/', (req, res) => {
   db.all(query, [], (err, rows) => {
     if (err) {
       console.error('Error fetching blogs:', err);
-      return res.status(500).json({ error: 'Failed to fetch blogs' });
+      console.log('DB Error:', err.message);
+      return res.status(500).json({ error: 'Failed to fetch blogs', details: err.message });
     }
 
     const blogs = rows.map(row => ({
@@ -54,6 +60,11 @@ router.get('/', (req, res) => {
 
 // Get latest N blogs (for homepage)
 router.get('/latest', (req, res) => {
+  console.log(`[${new Date().toISOString()}] GET /blogs/latest request from: ${req.get('x-request-origin') || req.get('host') || 'unknown'}`);
+  
+  // Set correct content type
+  res.setHeader('Content-Type', 'application/json');
+  
   const limit = parseInt(req.query.limit) || 5;
 
   const query = `
@@ -91,7 +102,8 @@ router.get('/latest', (req, res) => {
   db.all(query, [limit], (err, rows) => {
     if (err) {
       console.error('Error fetching latest blogs:', err);
-      return res.status(500).json({ error: 'Failed to fetch latest blogs' });
+      console.log('DB Error:', err.message);
+      return res.status(500).json({ error: 'Failed to fetch latest blogs', details: err.message });
     }
 
     const blogs = rows.map(row => ({
@@ -107,6 +119,11 @@ router.get('/latest', (req, res) => {
 
 // Get single blog (public)
 router.get('/:id', (req, res) => {
+  console.log(`[${new Date().toISOString()}] GET /blogs/${req.params.id} request from: ${req.get('x-request-origin') || req.get('host') || 'unknown'}`);
+  
+  // Set correct content type
+  res.setHeader('Content-Type', 'application/json');
+  
   const blogId = req.params.id;
 
   const query = `
@@ -142,7 +159,8 @@ router.get('/:id', (req, res) => {
   db.get(query, [blogId], (err, row) => {
     if (err) {
       console.error('Error fetching blog:', err);
-      return res.status(500).json({ error: 'Failed to fetch blog' });
+      console.log('DB Error:', err.message);
+      return res.status(500).json({ error: 'Failed to fetch blog', details: err.message });
     }
 
     if (!row) {
