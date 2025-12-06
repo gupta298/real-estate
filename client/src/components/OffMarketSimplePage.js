@@ -8,9 +8,6 @@ import { FiMapPin, FiHome, FiBriefcase, FiChevronDown, FiX } from 'react-icons/f
  * Simple off-market listing page with proper styling but minimal React dependencies
  * to troubleshoot React rendering issues
  */
-// Define slideshow interval reference at module level to avoid variable hoisting issues
-let slideshowInterval;
-
 export default function OffMarketSimplePage() {
   // Use a single state object to minimize hooks
   const [state, setState] = useState({
@@ -80,18 +77,22 @@ export default function OffMarketSimplePage() {
     }
   }
 
-  // Using the slideshowInterval declared at module scope
-
+  // Ref for storing interval ID safely within React's lifecycle
+  const slideshowIntervalRef = useRef(null);
+  
   // Set up slideshow for images - only runs in browser context
   function setupSlideshow() {
     // Skip if not in browser
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Clear any existing interval
-    if (slideshowInterval) clearInterval(slideshowInterval);
+    if (slideshowIntervalRef.current) {
+      clearInterval(slideshowIntervalRef.current);
+      slideshowIntervalRef.current = null;
+    }
     
     // Create slideshow interval - advance slides every 5 seconds
-    slideshowInterval = setInterval(() => {
+    const intervalId = setInterval(() => {
       try {
         // Don't advance slides if a video is playing
         const anyVideoPlaying = document.querySelector('video')?.paused === false;
@@ -145,6 +146,9 @@ export default function OffMarketSimplePage() {
         console.error('Error in slideshow:', e);
       }
     }, 5000); // Change slide every 5 seconds
+    
+    // Store the interval ID in the ref
+    slideshowIntervalRef.current = intervalId;
   }
   
   // Handle video play/pause when user navigates away
@@ -347,7 +351,7 @@ export default function OffMarketSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Set up slideshow once data is loaded
-    if (!loading && filteredDeals.length > 0) {
+    if (!state.loading && filteredDeals.length > 0) {
       setupSlideshow();
     }
     
@@ -356,15 +360,15 @@ export default function OffMarketSimplePage() {
     
     // Cleanup function
     return () => {
-      // Clear the interval using the module-level variable
-      if (slideshowInterval) {
-        clearInterval(slideshowInterval);
-        slideshowInterval = null;
+      // Clear the interval using the ref
+      if (slideshowIntervalRef.current) {
+        clearInterval(slideshowIntervalRef.current);
+        slideshowIntervalRef.current = null;
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
-  }, [loading, filteredDeals.length]);
+  }, [state.loading, filteredDeals.length]);
   
   // Infinite scroll observer effect - client-side only
   useEffect(() => {
@@ -372,7 +376,7 @@ export default function OffMarketSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Don't set up observer if all deals are already displayed or nothing to display
-    if (displayCount >= filteredDeals.length || filteredDeals.length === 0) return;
+    if (state.displayCount >= filteredDeals.length || filteredDeals.length === 0) return;
     
     // Create observer only if IntersectionObserver is available (client-side)
     if (!('IntersectionObserver' in window)) return;
@@ -380,7 +384,7 @@ export default function OffMarketSimplePage() {
     const observer = new IntersectionObserver(
       (entries) => {
         const firstEntry = entries[0];
-        if (firstEntry?.isIntersecting && displayCount < filteredDeals.length) {
+        if (firstEntry?.isIntersecting && state.displayCount < filteredDeals.length) {
           // Load 12 more deals
           setState(prev => ({
             ...prev,
@@ -404,7 +408,7 @@ export default function OffMarketSimplePage() {
         observer.unobserve(currentRef);
       }
     };
-  }, [displayCount, filteredDeals.length]);
+  }, [state.displayCount, filteredDeals.length]);
   
   // Get unique property types from all deals using useMemo
   const availablePropertyTypes = useMemo(() => {

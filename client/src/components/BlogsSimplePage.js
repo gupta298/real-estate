@@ -6,9 +6,6 @@ import { isSubdomain } from '@/utils/subdomainRouting';
  * Simple blog listing page with proper styling but minimal React dependencies
  * to troubleshoot React rendering issues
  */
-// Define slideshow interval reference at module level to avoid variable hoisting issues
-let slideshowInterval;
-
 export default function BlogsSimplePage() {
   // State management with a single state object to minimize hooks
   const [state, setState] = useState({
@@ -27,18 +24,22 @@ export default function BlogsSimplePage() {
   // Create a ref for infinite scrolling observer
   const loadMoreRef = useRef(null);
 
-  // Using the slideshowInterval declared at module scope
-
+  // Ref for storing interval ID safely within React's lifecycle
+  const slideshowIntervalRef = useRef(null);
+  
   // Set up slideshow for images - only runs in browser context
   function setupSlideshow() {
     // Skip if not in browser
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Clear any existing interval
-    if (slideshowInterval) clearInterval(slideshowInterval);
+    if (slideshowIntervalRef.current) {
+      clearInterval(slideshowIntervalRef.current);
+      slideshowIntervalRef.current = null;
+    }
     
     // Create slideshow interval - advance slides every 5 seconds
-    slideshowInterval = setInterval(() => {
+    const intervalId = setInterval(() => {
       try {
         // Don't advance slides if a video is playing
         const anyVideoPlaying = document.querySelector('video')?.paused === false;
@@ -92,6 +93,9 @@ export default function BlogsSimplePage() {
         console.error('Error in slideshow:', e);
       }
     }, 5000); // Change slide every 5 seconds
+    
+    // Store the interval ID in the ref
+    slideshowIntervalRef.current = intervalId;
   }
   
   // Handle video play/pause when user navigates away
@@ -169,7 +173,7 @@ export default function BlogsSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Set up slideshow once data is loaded
-    if (!loading && blogs.length > 0) {
+    if (!state.loading && state.blogs.length > 0) {
       setupSlideshow();
     }
     
@@ -178,15 +182,15 @@ export default function BlogsSimplePage() {
     
     // Cleanup function
     return () => {
-      // Clear the interval using the module-level variable
-      if (slideshowInterval) {
-        clearInterval(slideshowInterval);
-        slideshowInterval = null;
+      // Clear the interval using the ref
+      if (slideshowIntervalRef.current) {
+        clearInterval(slideshowIntervalRef.current);
+        slideshowIntervalRef.current = null;
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
-  }, [loading, blogs.length]);
+  }, [state.loading, state.blogs.length]);
   
   // Infinite scroll observer effect (similar to main page)
   useEffect(() => {
@@ -194,7 +198,7 @@ export default function BlogsSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Don't set up observer if all blogs are already displayed
-    if (displayCount >= blogs.length) return;
+    if (state.displayCount >= state.blogs.length) return;
     
     // Create observer only if IntersectionObserver is available (client-side)
     if (!('IntersectionObserver' in window)) return;
@@ -202,11 +206,11 @@ export default function BlogsSimplePage() {
     const observer = new IntersectionObserver(
       (entries) => {
         const firstEntry = entries[0];
-        if (firstEntry?.isIntersecting && displayCount < blogs.length) {
+        if (firstEntry?.isIntersecting && state.displayCount < state.blogs.length) {
           // Load 12 more blogs
           setState(prev => ({
             ...prev,
-            displayCount: Math.min(prev.displayCount + 12, blogs.length)
+            displayCount: Math.min(prev.displayCount + 12, state.blogs.length)
           }));
         }
       },
@@ -226,7 +230,7 @@ export default function BlogsSimplePage() {
         observer.unobserve(currentRef);
       }
     };
-  }, [displayCount, blogs.length]);
+  }, [state.displayCount, state.blogs.length]);
   
   // Format date for display
   function formatDate(dateString) {
