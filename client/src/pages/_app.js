@@ -8,6 +8,7 @@ import '@/styles/subdomain.css';
 import Header from '@/components/Header/Header';
 import TopContactBar from '@/components/TopContactBar/TopContactBar';
 import { isSubdomain } from '@/utils/subdomainRouting';
+import { forceBaseUrl } from '@/utils/apiConfig';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -18,6 +19,14 @@ export default function App({ Component, pageProps }) {
     setIsHomePage(router.pathname === '/');
     // Detect if we're in an iframe
     setIsInIframe(window.self !== window.top);
+    
+    // Initialize API for subdomain
+    if (typeof window !== 'undefined' && 
+        (window.location.hostname.includes('.blueflagindy.com') || 
+         window.location.hostname === 'blueflagindy.com')) {
+      console.log('[App] Detected blueflagindy.com domain, initializing API...');
+      forceBaseUrl();
+    }
     
     // Send height updates to parent if in iframe
     if (window.self !== window.top) {
@@ -57,6 +66,20 @@ export default function App({ Component, pageProps }) {
 
   // Different layout for subdomain access - much simpler, focused on content
   if (isOnSubdomain) {
+    // Initialize any subdomain-specific requirements
+    useEffect(() => {
+      if (typeof window !== 'undefined') {
+        console.log(`[App] Running in ${isOffmarketSubdomain ? 'offmarket' : 'blog'} subdomain mode`);
+        
+        // Force correct API URL for subdomain
+        forceBaseUrl();
+        
+        // Add debugging info to console
+        console.log('[App] Current URL:', window.location.href);
+        console.log('[App] Current pathname:', router.pathname);
+      }
+    }, []);
+    
     return (
       <div className="bg-white subdomain-view">
         <div className="subdomain-content">

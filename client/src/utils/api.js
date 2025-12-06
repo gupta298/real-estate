@@ -1,13 +1,18 @@
 import axios from 'axios';
+import { API_URL } from './apiConfig';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
+// Create API instance with robust error handling
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  // Add timeout
+  timeout: 10000,
 });
+
+// Log API configuration
+console.log(`API configured with baseURL: ${API_URL}`);
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
@@ -118,8 +123,33 @@ export const submitInquiry = async (inquiryData) => {
 
 // Off-Market Deals API (public)
 export const getOffMarketDeals = async (params = {}) => {
-  const response = await api.get('/off-market', { params });
-  return response.data;
+  console.log('[API] Fetching off-market deals from:', API_URL, 'with params:', params);
+  try {
+    // Force absolute URL for debugging
+    const fullUrl = `${API_URL}/off-market`;
+    console.log('[API] Full URL being used:', fullUrl);
+    
+    const response = await api.get('/off-market', { params });
+    console.log('[API] Got off-market deals:', response.status, response.data?.deals?.length || 0, 'items');
+    return response.data;
+  } catch (error) {
+    console.error('[API] Error loading off-market deals:', error);
+    if (error.response) {
+      // The request was made and the server responded with a status code
+      // that falls out of the range of 2xx
+      console.error('[API] Error response:', error.response.status, error.response.data);
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('[API] No response received for URL:', `${API_URL}/off-market`);
+      console.log('[API] Using baseURL:', api.defaults.baseURL);
+      console.log('[API] Browser location:', typeof window !== 'undefined' ? window.location.href : 'Not in browser');
+    } else {
+      // Something happened in setting up the request
+      console.error('[API] Error:', error.message);
+    }
+    // Return empty data instead of throwing to avoid breaking UI
+    return { deals: [] };
+  }
 };
 
 export const getOffMarketDealById = async (id) => {

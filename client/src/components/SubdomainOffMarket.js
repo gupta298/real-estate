@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getOffMarketDeals } from '@/utils/api';
 import SubdomainMeta from './SubdomainMeta';
 import { useRouter } from 'next/router';
+import { forceBaseUrl } from '@/utils/apiConfig';
 
 /**
  * Simplified Off-Market component specifically for subdomain display
@@ -12,23 +13,58 @@ export default function SubdomainOffMarket() {
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isInIframe, setIsInIframe] = useState(false);
+  const [loadAttempts, setLoadAttempts] = useState(0);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
+    // Initial load
     loadDeals();
     
     // Detect if we're in an iframe
     setIsInIframe(window.self !== window.top);
+    
+    // Add automatic fallback if first load fails
+    const fallbackTimer = setTimeout(() => {
+      if (deals.length === 0 && loadAttempts === 1) {
+        console.log('SubdomainOffMarket: No deals loaded on first attempt, trying fallback...');
+        loadDeals(true); // Try with fallback URL
+      }
+    }, 3000); // Wait 3 seconds before trying fallback
+    
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
-  const loadDeals = async () => {
+  const loadDeals = async (tryFallback = false) => {
     try {
+      console.log(`SubdomainOffMarket: Loading deals (attempt ${loadAttempts + 1})...`);
       setLoading(true);
+      setLoadError(null);
+      
+      // Try using the fallback URL mechanism if requested
+      if (tryFallback && loadAttempts > 0) {
+        console.log('SubdomainOffMarket: Trying fallback API URL...');
+        const newUrl = forceBaseUrl();
+        console.log(`SubdomainOffMarket: Now using API URL: ${newUrl}`);
+      }
+      
       const data = await getOffMarketDeals({});
-      setDeals(data.deals || []);
+      console.log('SubdomainOffMarket: API response:', data);
+      
+      if (data && data.deals && Array.isArray(data.deals)) {
+        console.log(`SubdomainOffMarket: Successfully loaded ${data.deals.length} deals`);
+        setDeals(data.deals);
+      } else {
+        console.error('SubdomainOffMarket: Invalid response format, deals array not found', data);
+        setLoadError('Received invalid data format from server');
+        setDeals([]);
+      }
     } catch (error) {
-      console.error('Error loading off-market deals:', error);
+      console.error('SubdomainOffMarket: Error loading off-market deals:', error);
+      setLoadError(error.message || 'Failed to load deals');
+      setDeals([]);
     } finally {
       setLoading(false);
+      setLoadAttempts(prev => prev + 1);
     }
   };
 
@@ -42,7 +78,7 @@ export default function SubdomainOffMarket() {
   }
 
   return (
-    <div className="bg-white py-8">
+    <div className="bg-white py-8 subdomain-view">
       <SubdomainMeta 
         title="Off-Market Deals | Blue Flag Indy" 
         description="Exclusive business opportunities and properties not listed on MLS" 
@@ -52,8 +88,16 @@ export default function SubdomainOffMarket() {
         <p className="text-lg text-gray-600 mb-8">
           Exclusive business opportunities and properties not listed on MLS
         </p>
+        {/* Debug info */}
+        {process.env.NODE_ENV !== 'production' && (
+          <div className="bg-gray-100 p-4 mb-6 rounded-lg text-xs">
+            <p><strong>Debug Info:</strong></p>
+            <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
+            <p>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}</p>
+          </div>
+        )}
 
-        {deals.length > 0 ? (
+        {deals && deals.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {deals.map((deal) => (
               <div key={deal.id} className="border rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow">
@@ -113,7 +157,15 @@ export default function SubdomainOffMarket() {
           </div>
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500 text-lg">No off-market deals available at the moment.</p>
+            <p className="text-gray-500 text-lg">
+              {loading ? 'Loading...' : loadError ? `Error: ${loadError}` : 'No off-market deals available at the moment.'}
+            </p>
+            <button 
+              onClick={() => loadDeals(loadAttempts > 0)}
+              className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
+            >
+              {loadAttempts > 0 ? 'Try Again with Fallback' : 'Retry'}
+            </button>
           </div>
         )}
       </div>

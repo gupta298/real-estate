@@ -25,24 +25,41 @@ app.use(cors({
   credentials: true
 }));
 
-// Simple subdomain routing - only redirect root paths
+// Enhanced subdomain routing with better path handling
 app.use((req, res, next) => {
   const host = req.hostname || req.headers.host || '';
-  const isRootPath = req.url === '/' || req.url === '';
+  const url = req.url;
   
-  // Log incoming requests
-  console.log(`📝 Request: ${host}${req.url}`);
+  // Log all incoming requests with full details
+  console.log(`📝 [${new Date().toISOString()}] Request: ${host}${url}`);
   
-  // Handle offmarket subdomain - only redirect the root path
-  if ((host === 'offmarket.blueflagindy.com' || host.startsWith('offmarket.')) && isRootPath) {
-    console.log(`🔜 Redirecting ${host}/ to /off-market`);
-    return res.redirect('/off-market');
+  // Check if on offmarket subdomain
+  const isOffmarketSubdomain = host === 'offmarket.blueflagindy.com' || host.startsWith('offmarket.');
+  
+  // Check if on blog subdomain
+  const isBlogSubdomain = host === 'blog.blueflagindy.com' || host.startsWith('blog.');
+  
+  // Handle offmarket subdomain
+  if (isOffmarketSubdomain) {
+    // Make sure any request on the subdomain properly shows the off-market content
+    // Only redirect if not already on the off-market path
+    if (!url.startsWith('/off-market')) {
+      console.log(`🔜 Redirecting ${host}${url} to /off-market`);
+      return res.redirect('/off-market');
+    } else {
+      console.log(`✅ Already on off-market path: ${url}`);
+    }
   }
   
-  // Handle blog subdomain - only redirect the root path
-  if ((host === 'blog.blueflagindy.com' || host.startsWith('blog.')) && isRootPath) {
-    console.log(`🔜 Redirecting ${host}/ to /blogs`);
-    return res.redirect('/blogs');
+  // Handle blog subdomain
+  if (isBlogSubdomain) {
+    // Only redirect if not already on the blogs path
+    if (!url.startsWith('/blogs')) {
+      console.log(`🔜 Redirecting ${host}${url} to /blogs`);
+      return res.redirect('/blogs');
+    } else {
+      console.log(`✅ Already on blogs path: ${url}`);
+    }
   }
   next();
 });
