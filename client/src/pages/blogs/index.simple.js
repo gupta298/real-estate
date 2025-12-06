@@ -76,8 +76,11 @@ export default function BlogsSimplePage() {
       }
     }
     
-    // Set up slideshow for images
+    // Set up slideshow for images - only runs in browser context
     function setupSlideshow() {
+      // Skip if not in browser
+      if (typeof window === 'undefined' || typeof document === 'undefined') return;
+      
       // Clear any existing interval
       if (slideshowInterval) clearInterval(slideshowInterval);
       
@@ -90,30 +93,46 @@ export default function BlogsSimplePage() {
           
           // Get all slideshow containers
           const slideshows = document.querySelectorAll('.swiper-wrapper');
+          if (!slideshows || slideshows.length === 0) return;
           
           slideshows.forEach(slideshow => {
+            if (!slideshow) return;
             const slides = slideshow.querySelectorAll('.swiper-slide');
-            if (slides.length <= 1) return; // Skip if only one slide
+            if (!slides || slides.length <= 1) return; // Skip if only one slide
             
             // Find active slide
             let activeIndex = -1;
             slides.forEach((slide, index) => {
-              if (slide.classList.contains('swiper-slide-active')) {
+              if (!slide) return;
+              if (slide.classList?.contains('swiper-slide-active')) {
                 activeIndex = index;
               }
             });
             
+            if (activeIndex === -1) activeIndex = 0;
+            
             // Move to next slide
             const nextIndex = (activeIndex + 1) % slides.length;
-            slides.forEach(s => s.classList.remove('swiper-slide-active'));
-            slides[nextIndex].classList.add('swiper-slide-active');
+            slides.forEach(s => {
+              if (s && s.classList) s.classList.remove('swiper-slide-active');
+            });
+            
+            if (slides[nextIndex] && slides[nextIndex].classList) {
+              slides[nextIndex].classList.add('swiper-slide-active');
+            }
             
             // Update pagination bullets
             const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
             if (paginationContainer) {
               const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
-              bullets.forEach(b => b.classList.remove('swiper-pagination-bullet-active'));
-              bullets[nextIndex]?.classList.add('swiper-pagination-bullet-active');
+              if (bullets && bullets.length) {
+                bullets.forEach(b => {
+                  if (b && b.classList) b.classList.remove('swiper-pagination-bullet-active');
+                });
+                if (bullets[nextIndex] && bullets[nextIndex].classList) {
+                  bullets[nextIndex].classList.add('swiper-pagination-bullet-active');
+                }
+              }
             }
           });
         } catch (e) {
@@ -124,9 +143,15 @@ export default function BlogsSimplePage() {
     
     // Handle video play/pause when user navigates away
     function handleVisibilityChange() {
+      if (typeof document === 'undefined') return;
       if (document.hidden) {
         // Page is hidden, pause all videos
-        document.querySelectorAll('video').forEach(video => video.pause());
+        const videos = document.querySelectorAll('video');
+        if (videos) {
+          videos.forEach(video => {
+            if (video && typeof video.pause === 'function') video.pause();
+          });
+        }
       }
     }
     
@@ -135,23 +160,49 @@ export default function BlogsSimplePage() {
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
     
+    // Only load blogs on server or first client render
     loadBlogs();
     
     // Cleanup function to prevent memory leaks
     return () => {
       isActive = false;
-      if (slideshowInterval) clearInterval(slideshowInterval);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-        document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
-      }
     };
   }, []);
   
+  // Variables for slideshow - must be outside of effects
+  let slideshowInterval;
+  
+  // Setup slideshow and DOM event handlers in a separate useEffect that only runs on client
+  useEffect(() => {
+    // Skip if not in browser
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
+    // Set up slideshow once data is loaded
+    if (!loading && blogs.length > 0) {
+      setupSlideshow();
+    }
+    
+    // Add visibility change listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Cleanup function
+    return () => {
+      if (slideshowInterval) clearInterval(slideshowInterval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
+    };
+  }, [loading, blogs.length]);
+  
   // Infinite scroll observer effect (similar to main page)
   useEffect(() => {
+    // Skip if not in browser
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
     // Don't set up observer if all blogs are already displayed
     if (displayCount >= blogs.length) return;
+    
+    // Create observer only if IntersectionObserver is available (client-side)
+    if (!('IntersectionObserver' in window)) return;
     
     const observer = new IntersectionObserver(
       (entries) => {
@@ -176,7 +227,7 @@ export default function BlogsSimplePage() {
     }
 
     return () => {
-      if (currentRef) {
+      if (currentRef && observer) {
         observer.unobserve(currentRef);
       }
     };
@@ -265,19 +316,30 @@ export default function BlogsSimplePage() {
       lightboxImages: { image, blogTitle }
     }));
     // Prevent scrolling when lightbox is open
-    if (typeof document !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
       document.body.style.overflow = 'hidden';
     }
   }
 
   // Close lightbox
   function closeLightbox() {
+    // Pause all videos when closing
+    if (typeof document !== 'undefined') {
+      const videos = document.querySelectorAll('video');
+      if (videos) {
+        videos.forEach(video => {
+          if (video && typeof video.pause === 'function') video.pause();
+        });
+      }
+    }
+    
     setState(prev => ({
       ...prev,
       lightboxImages: null
     }));
+    
     // Restore scrolling
-    if (typeof document !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
       document.body.style.overflow = 'unset';
     }
   }
