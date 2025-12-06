@@ -42,6 +42,31 @@ Set these environment variables in your Render dashboard:
 
 The application uses SQLite, which is automatically set up during deployment. The database file will be stored in the persistent disk provided by Render.
 
+## Subdomain Routing
+
+The application is configured to handle subdomain routing for specialized content paths. The following subdomains are configured:
+
+- `offmarket.blueflagindy.com`: Redirects to the `/off-market` path
+- `blog.blueflagindy.com`: Redirects to the `/blogs` path
+
+### How it works
+
+1. The Express server checks the incoming request's hostname
+2. Based on the subdomain, it redirects to the appropriate path:
+   - `offmarket.blueflagindy.com` → `/off-market` path
+   - `blog.blueflagindy.com` → `/blogs` path
+3. This ensures users see the relevant content when visiting each subdomain
+
+### Custom Domain Configuration
+
+In the `render.yaml` file, the following domains are configured:
+- blueflagindy.com (main domain)
+- www.blueflagindy.com (www subdomain)
+- offmarket.blueflagindy.com (off-market subdomain)
+- blog.blueflagindy.com (blog subdomain)
+
+Make sure these domains are also configured in your DNS settings at GoDaddy to point to your Render service.
+
 ## Health Checks
 
 The application provides a health check endpoint at `/api/health` that Render can use to verify the application is running correctly.

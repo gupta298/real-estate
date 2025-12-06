@@ -25,6 +25,53 @@ app.use(cors({
   credentials: true
 }));
 
+// Subdomain routing - handle offmarket.blueflagindy.com and blog.blueflagindy.com
+app.use((req, res, next) => {
+  const host = req.hostname || req.headers.host || '';
+  
+  // Log incoming requests to help with debugging
+  console.log(`📝 Request: ${host}${req.url}`);
+  
+  // Check if this is a special path (/off-market or /blogs) that shouldn't be redirected
+  const isOffMarketPath = req.url.startsWith('/off-market');
+  const isBlogsPath = req.url.startsWith('/blogs');
+  
+  // Handle offmarket subdomain
+  if (host === 'offmarket.blueflagindy.com' || host.startsWith('offmarket.')) {
+    // Only redirect if not already on an off-market path
+    if (!isOffMarketPath) {
+      // For root path, redirect to /off-market
+      if (req.url === '/' || req.url === '') {
+        console.log(`🔜 Redirecting ${host}${req.url} to /off-market`);
+        return res.redirect('/off-market');
+      }
+      // For other paths, prefix with /off-market
+      console.log(`🔜 Redirecting ${host}${req.url} to /off-market${req.url}`);
+      return res.redirect(`/off-market${req.url}`);
+    } else {
+      console.log(`✅ Already on off-market path: ${req.url}`);
+    }
+  }
+  
+  // Handle blog subdomain
+  if (host === 'blog.blueflagindy.com' || host.startsWith('blog.')) {
+    // Only redirect if not already on a blogs path
+    if (!isBlogsPath) {
+      // For root path, redirect to /blogs
+      if (req.url === '/' || req.url === '') {
+        console.log(`🔜 Redirecting ${host}${req.url} to /blogs`);
+        return res.redirect('/blogs');
+      }
+      // For other paths, prefix with /blogs
+      console.log(`🔜 Redirecting ${host}${req.url} to /blogs${req.url}`);
+      return res.redirect(`/blogs${req.url}`);
+    } else {
+      console.log(`✅ Already on blogs path: ${req.url}`);
+    }
+  }
+  next();
+});
+
 // Allow iframe embedding only from blueflagindy.com
 app.use((req, res, next) => {
   res.removeHeader('X-Frame-Options');

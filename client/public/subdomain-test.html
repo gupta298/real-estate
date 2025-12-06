@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Subdomain Routing Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            color: #0055A4;
+        }
+        .info-box {
+            background-color: #f9f9f9;
+            border-left: 4px solid #0055A4;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        code {
+            background: #f0f0f0;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+        }
+        button {
+            background: #0055A4;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 0.5rem 0;
+        }
+        button:hover {
+            background: #003C7D;
+        }
+        .result {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Subdomain Routing Test</h1>
+    <div class="info-box">
+        <p>This page tests the subdomain routing configuration for the Blue Flag Indy website.</p>
+        <p>Current hostname: <code id="hostname">Loading...</code></p>
+        <p>Current path: <code id="path">Loading...</code></p>
+    </div>
+
+    <h2>Test Navigation</h2>
+    <p>Click the buttons below to test different routes:</p>
+    
+    <button onclick="navigateTo('/')">Home Page</button>
+    <button onclick="navigateTo('/off-market')">Off Market Page</button>
+    <button onclick="navigateTo('/blogs')">Blogs Page</button>
+    
+    <h2>Test Log</h2>
+    <div id="log" class="result">
+        <p>Log will appear here...</p>
+    </div>
+
+    <script>
+        // Display current location info
+        document.getElementById('hostname').textContent = window.location.hostname;
+        document.getElementById('path').textContent = window.location.pathname;
+        
+        // Log function
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `<p>[${timestamp}] ${message}</p>`;
+        }
+        
+        // Navigation function
+        function navigateTo(path) {
+            log(`Navigating to ${path}...`);
+            window.location.href = path;
+        }
+        
+        // Check for subdomain routing
+        window.addEventListener('DOMContentLoaded', () => {
+            const hostname = window.location.hostname;
+            const path = window.location.pathname;
+            
+            log(`Page loaded at ${hostname}${path}`);
+            
+            // Check if on a subdomain
+            if (hostname.includes('offmarket.')) {
+                log('Detected offmarket subdomain');
+                if (!path.startsWith('/off-market')) {
+                    log('Should redirect to /off-market');
+                } else {
+                    log('Already on correct path for offmarket subdomain');
+                }
+            } else if (hostname.includes('blog.')) {
+                log('Detected blog subdomain');
+                if (!path.startsWith('/blogs')) {
+                    log('Should redirect to /blogs');
+                } else {
+                    log('Already on correct path for blog subdomain');
+                }
+            } else {
+                log('Not on a special subdomain');
+            }
+        });
+    </script>
+</body>
+</html>

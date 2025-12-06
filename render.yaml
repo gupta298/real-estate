@@ -8,13 +8,18 @@ services:
     plan: starter
     buildCommand: npm run production:build
     startCommand: npm run production:deploy
+    domains:
+      - blueflagindy.com
+      - www.blueflagindy.com
+      - offmarket.blueflagindy.com
+      - blog.blueflagindy.com
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: CORS_ORIGIN
-        sync: false # Set this in the Render dashboard
+        value: https://blueflagindy.com,https://www.blueflagindy.com,https://offmarket.blueflagindy.com,https://blog.blueflagindy.com
     healthCheckPath: /api/health
     # Automatically handle database setup
     autoDeploy: true

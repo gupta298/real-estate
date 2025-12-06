@@ -6,6 +6,7 @@ import '@/styles/globals.css';
 import '@/styles/swiper-custom.css';
 import Header from '@/components/Header/Header';
 import TopContactBar from '@/components/TopContactBar/TopContactBar';
+import { needsSubdomainRedirect, getSubdomainPath } from '@/utils/subdomainRouting';
 
 export default function App({ Component, pageProps }) {
   const router = useRouter();
@@ -16,6 +17,13 @@ export default function App({ Component, pageProps }) {
     setIsHomePage(router.pathname === '/');
     // Detect if we're in an iframe
     setIsInIframe(window.self !== window.top);
+    
+    // Handle subdomain-based routing
+    if (needsSubdomainRedirect(router.pathname)) {
+      const targetPath = getSubdomainPath();
+      console.log(`Client-side redirecting to ${targetPath} based on subdomain`);
+      router.push(targetPath);
+    }
     
     // Send height updates to parent if in iframe
     if (window.self !== window.top) {
