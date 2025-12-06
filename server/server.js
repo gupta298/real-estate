@@ -287,7 +287,8 @@ if (clientBuildPath) {
     console.warn('⚠️ Next.js static build not found in any of the expected locations');
 }
 
-// Routes
+// Routes - mount at both /api/ path and direct root path for flexibility
+// Original /api routes
 app.use('/api/properties', propertyRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/mls', mlsRoutes);
@@ -300,8 +301,30 @@ app.use('/api/off-market', offMarketRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/upload', uploadRoutes);
 
-// Health check
+// Also mount the same routes directly at root for direct access
+app.use('/properties', propertyRoutes);
+app.use('/search', searchRoutes);
+app.use('/mls', mlsRoutes);
+app.use('/auth', authRoutes);
+app.use('/agents', agentRoutes);
+app.use('/inquiries', inquiryRoutes);
+app.use('/seller-inquiries', sellerInquiryRoutes);
+app.use('/admin', adminRoutes);
+app.use('/off-market', offMarketRoutes);
+app.use('/blogs', blogRoutes);
+app.use('/upload', uploadRoutes);
+
+// Health check - available at both /api/health and /health
 app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Real Estate API is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Duplicate health check at root path
+app.get('/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'Real Estate API is running',

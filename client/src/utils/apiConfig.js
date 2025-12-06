@@ -13,16 +13,17 @@ const getApiUrl = () => {
     
     // PRODUCTION LOGIC: Always use the main domain for API calls
     
-    // For live blueflagindy.com domain or any of its subdomains
-    if (hostname === 'blueflagindy.com' || hostname.includes('.blueflagindy.com')) {
-      console.log('🌐 Using production API endpoint for blueflagindy.com');
-      return `${protocol}//blueflagindy.com/api`;
+    // For subdomains of blueflagindy.com
+    if (hostname.includes('.blueflagindy.com')) {
+      console.log(`🌐 Using current subdomain for API: ${hostname}`);
+      // Use the current subdomain for API calls
+      return `${protocol}//${hostname}`;
     }
     
-    // For render.com preview domain
-    if (hostname.includes('render.com')) {
-      console.log('🌐 Using Render preview domain for API');
-      return `${protocol}//${hostname}/api`;
+    // For render.com preview domain or main blueflagindy.com (which is on different server)
+    if (hostname.includes('render.com') || hostname === 'blueflagindy.com') {
+      console.log(`🌐 Using ${hostname} for API calls`);
+      return `${protocol}//${hostname}`;
     }
     
     // For localhost development

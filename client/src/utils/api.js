@@ -18,16 +18,86 @@ console.log(`API configured with baseURL: ${API_URL} (from ${hostname})`);
 // Allow inspecting the API config in browser console
 if (typeof window !== 'undefined') {
   window.DEBUG_API_URL = API_URL;
+  
+  // Add a global error handler for failed API requests
+  window.addEventListener('unhandledrejection', event => {
+    if (event.reason && event.reason.isAxiosError) {
+      console.error('[API] Unhandled API error:', event.reason);
+      // If the error is 404 and has /api/ in the URL, try without /api/
+      if (event.reason.response && event.reason.response.status === 404) {
+        const failedUrl = event.reason.config.url;
+        console.warn('[API] 404 error for URL:', failedUrl);
+      }
+    }
+  });
 }
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
+  // Add auth token if available
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Add origin information to help with debugging
+  if (typeof window !== 'undefined') {
+    config.headers['X-Request-Origin'] = window.location.hostname;
+  }
+  
+  // Log outgoing requests in development
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[API Request] ${config.method?.toUpperCase() || 'GET'} ${config.baseURL}${config.url}`);
+  }
+  
   return config;
 });
+
+// Add response interceptor for automatic retrying of 404 errors with path adjustments
+api.interceptors.response.use(
+  response => response,
+  async error => {
+    // Only retry for configured cases and if we haven't tried already
+    if (error.response && 
+        error.response.status === 404 && 
+        error.config && 
+        !error.config._retry) {
+      
+      // Mark as retried to prevent infinite loops
+      error.config._retry = true;
+      
+      let newUrl = error.config.url;
+      let retryReason = '';
+      
+      // Case 1: If URL contains /api/, try without it
+      if (error.config.url.includes('/api/')) {
+        newUrl = error.config.url.replace('/api/', '/');
+        retryReason = 'removing /api prefix';
+      }
+      // Case 2: If URL doesn't have /api/ but we're on a subdomain, try adding it
+      else if (typeof window !== 'undefined' && 
+               window.location.hostname.includes('.blueflagindy.com') &&
+               !error.config.url.includes('/api/')) {
+        newUrl = error.config.url.replace(/^\//, '/api/');
+        retryReason = 'adding /api prefix';
+      }
+      
+      console.log(`[API] Retrying 404 request by ${retryReason}: ${newUrl}`);
+      
+      try {
+        // Create a new request with the modified URL
+        const newConfig = { ...error.config, url: newUrl };
+        return await axios(newConfig);
+      } catch (retryError) {
+        console.error(`[API] Retry also failed:`, retryError);
+        return Promise.reject(retryError);
+      }
+    }
+    
+    // For all other errors, just pass through
+    return Promise.reject(error);
+  }
+);
 
 // Properties API
 export const getProperties = async (params = {}) => {
