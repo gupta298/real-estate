@@ -1,14 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { getOffMarketDealById } from '@/utils/api';
 import SubdomainMeta from './SubdomainMeta';
 import { isSubdomain } from '@/utils/subdomainRouting';
 import Image from 'next/image';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination, Navigation } from 'swiper/modules';
+import { Pagination, Navigation, Autoplay } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/pagination';
 import 'swiper/css/navigation';
+import 'swiper/css/autoplay';
 
 /**
  * Simplified Off-Market Deal Detail component for iframe embedding
@@ -21,6 +22,9 @@ export default function SubdomainOffMarketDetail({ id }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isInIframe, setIsInIframe] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const swiperRef = useRef(null);
 
   useEffect(() => {
     // Detect if we're in an iframe
@@ -55,6 +59,189 @@ export default function SubdomainOffMarketDetail({ id }) {
     }
   };
 
+  // Previous focus element reference to restore focus when closing lightbox
+  const previousFocusRef = useRef(null);
+  
+  // Lightbox close button ref for auto-focusing
+  const closeButtonRef = useRef(null);
+  
+  // Lightbox open handler
+  const openLightbox = (index) => {
+    // Store current active element to restore focus later
+    if (typeof document !== 'undefined') {
+      previousFocusRef.current = document.activeElement;
+    }
+    
+    setCurrentSlideIndex(index);
+    setLightboxOpen(true);
+    
+    // Prevent scrolling when lightbox is open
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
+      
+      // Focus close button after a short delay to ensure it's rendered
+      setTimeout(() => {
+        if (closeButtonRef.current) {
+          closeButtonRef.current.focus();
+        }
+      }, 50);
+    }
+  };
+
+  // Lightbox close handler
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    
+    // Restore scrolling
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'unset';
+      
+      // Restore focus to previous element
+      setTimeout(() => {
+        if (previousFocusRef.current) {
+          previousFocusRef.current.focus();
+        }
+      }, 50);
+    }
+  };
+
+  // Create mediaItems from deal images and videos
+  // Move this up before functions that depend on it
+  const mediaItems = deal ? [
+    ...(deal.images || []).map(img => ({ ...img, type: 'image', url: img.imageUrl, displayOrder: img.displayOrder || 0 })),
+    ...(deal.videos || []).map(vid => ({ ...vid, type: 'video', url: vid.videoUrl, displayOrder: vid.displayOrder || 999 }))
+  ].sort((a, b) => a.displayOrder - b.displayOrder) : [];
+
+  // Navigate to next image in lightbox
+  const nextImage = () => {
+    if (!mediaItems || mediaItems.length === 0) return;
+    setCurrentSlideIndex((prev) => (prev + 1) % mediaItems.length);
+  };
+
+  // Navigate to previous image in lightbox
+  const prevImage = () => {
+    if (!mediaItems || mediaItems.length === 0) return;
+    setCurrentSlideIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
+  };
+
+  // Focus trap for the lightbox
+  useEffect(() => {
+    if (!lightboxOpen || typeof document === 'undefined') return;
+    
+    // Handle tab key to create a focus trap
+    const handleTabKey = (e) => {
+      if (e.key !== 'Tab') return;
+      
+      // Get all focusable elements in the lightbox
+      const lightbox = document.querySelector('[role="dialog"]');
+      if (!lightbox) return;
+      
+      const focusableElements = lightbox.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      
+      // Handle tab and shift+tab to create the focus trap
+      if (e.shiftKey) { // Shift+Tab
+        if (document.activeElement === firstElement) {
+          lastElement.focus();
+          e.preventDefault();
+        }
+      } else { // Tab
+        if (document.activeElement === lastElement) {
+          firstElement.focus();
+          e.preventDefault();
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleTabKey);
+    return () => document.removeEventListener('keydown', handleTabKey);
+  }, [lightboxOpen]);
+
+  // Enhanced keyboard navigation for both lightbox and main carousel
+  useEffect(() => {
+    // Skip if not in browser or no media items
+    if (typeof window === 'undefined' || !mediaItems || mediaItems.length === 0) return;
+    
+    const handleKeyPress = (e) => {
+      // Process keyboard events based on context
+      if (lightboxOpen) {
+        // Lightbox is open - handle navigation there
+        if (e.key === 'Escape') {
+          closeLightbox();
+        } else if (e.key === 'ArrowLeft') {
+          prevImage();
+          e.preventDefault(); // Prevent page scrolling
+        } else if (e.key === 'ArrowRight') {
+          nextImage();
+          e.preventDefault(); // Prevent page scrolling
+        } else if (e.key === ' ' || e.key === 'Enter') {
+          // Space or Enter toggles play/pause for videos
+          const activeVideo = document.querySelector('.lightbox-media video');
+          if (activeVideo) {
+            if (activeVideo.paused) {
+              activeVideo.play();
+            } else {
+              activeVideo.pause();
+            }
+            e.preventDefault();
+          }
+        }
+      } else {
+        // Regular view - navigate the main carousel
+        if (swiperRef.current) {
+          if (e.key === 'ArrowLeft') {
+            swiperRef.current.slidePrev();
+            e.preventDefault(); // Prevent page scrolling
+          } else if (e.key === 'ArrowRight') {
+            swiperRef.current.slideNext();
+            e.preventDefault(); // Prevent page scrolling
+          } else if (e.key === 'Enter' || e.key === ' ') {
+            // Enter or Space opens the lightbox with current slide
+            openLightbox(swiperRef.current.realIndex);
+            e.preventDefault();
+          } else if (e.key === 'Escape') {
+            // Escape can be used to go back to listing
+            handleBackClick();
+          }
+        }
+      }
+    };
+
+    // Add keyboard event listener
+    window.addEventListener('keydown', handleKeyPress);
+    
+    // Cleanup on unmount
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [lightboxOpen, mediaItems]);
+  
+  // Sync swiper and current slide index
+  useEffect(() => {
+    if (swiperRef.current && typeof currentSlideIndex === 'number') {
+      // If the swiper is initialized and we have a valid index
+      if (currentSlideIndex !== swiperRef.current.realIndex) {
+        // Only update if needed to avoid loops
+        swiperRef.current.slideToLoop(currentSlideIndex, 300);
+      }
+    }
+  }, [currentSlideIndex]);
+  
+  // Pause videos when closing lightbox
+  useEffect(() => {
+    if (!lightboxOpen && typeof document !== 'undefined') {
+      // When lightbox closes, pause any playing videos
+      const videos = document.querySelectorAll('video');
+      videos.forEach(video => {
+        if (video && !video.paused) {
+          video.pause();
+        }
+      });
+    }
+  }, [lightboxOpen]);
+
   // Format date if available
   const formatDate = (dateString) => {
     if (!dateString) return '';
@@ -81,7 +268,7 @@ export default function SubdomainOffMarketDetail({ id }) {
       }
     } else if (isSubdomain('offmarket')) {
       // On subdomain, navigate to the subdomain root
-      window.location.href = '/index.simple';
+      window.location.href = '/off-market/index.simple';
     } else {
       // Regular navigation
       window.location.href = '/off-market/index.simple';
@@ -109,11 +296,7 @@ export default function SubdomainOffMarketDetail({ id }) {
     );
   }
 
-  // Combine images and videos for the gallery
-  const mediaItems = [
-    ...(deal.images || []).map(img => ({ ...img, type: 'image', url: img.imageUrl, displayOrder: img.displayOrder || 0 })),
-    ...(deal.videos || []).map(vid => ({ ...vid, type: 'video', url: vid.videoUrl, displayOrder: vid.displayOrder || 999 }))
-  ].sort((a, b) => a.displayOrder - b.displayOrder);
+  // The mediaItems are already defined above
 
   return (
     <div className="bg-white">
@@ -175,21 +358,67 @@ export default function SubdomainOffMarketDetail({ id }) {
         {/* Media Gallery */}
         {mediaItems.length > 0 && (
           <div className="mb-8">
+            {/* Add gallery instruction message */}
+            <div className="mb-2 text-center text-sm text-gray-500 flex flex-col items-center justify-center gap-1">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Click on image/video to view in fullscreen gallery</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs mt-1">
+                <span>Keyboard: Use ← → arrows to navigate, Enter/Space to open, Esc to close</span>
+              </div>
+            </div>
+            
             <Swiper
               spaceBetween={10}
               slidesPerView={1}
+              initialSlide={0}
               pagination={{
                 clickable: true,
                 dynamicBullets: true,
               }}
               navigation={true}
-              modules={[Pagination, Navigation]}
+              loop={true}
+              loopFillGroupWithBlank={true}
+              loopAdditionalSlides={2}
+              autoplay={{
+                delay: 5000,
+                disableOnInteraction: false,
+                pauseOnMouseEnter: true,
+              }}
+              onSwiper={(swiper) => {
+                swiperRef.current = swiper;
+                // Ensure we start at index 0
+                swiper.slideToLoop(0, 0, false);
+              }}
+              onSlideChange={(swiper) => {
+                setCurrentSlideIndex(swiper.realIndex);
+              }}
+              modules={[Pagination, Navigation, Autoplay]}
               className="rounded-lg overflow-hidden"
               style={{ height: '400px' }}
             >
               {mediaItems.map((item, index) => (
                 <SwiperSlide key={`${item.type}-${index}`}>
-                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                  <div 
+                    className="w-full h-full flex items-center justify-center bg-gray-100 relative group"
+                    onClick={(e) => {
+                      if (item.type !== 'video') {
+                        openLightbox(index);
+                      }
+                    }}
+                  >
+                    {/* Hover overlay with icon for images */}
+                    {item.type !== 'video' && (
+                      <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
+                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                        </svg>
+                      </div>
+                    )}
+                    
                     {item.type === 'video' ? (
                       <video 
                         src={item.url}
@@ -197,6 +426,10 @@ export default function SubdomainOffMarketDetail({ id }) {
                         controls
                         playsInline
                         preload="metadata"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Don't open lightbox when clicking directly on video (allow video controls to work)
+                        }}
                       >
                         Your browser does not support the video tag.
                       </video>
@@ -204,9 +437,14 @@ export default function SubdomainOffMarketDetail({ id }) {
                       <img 
                         src={item.url}
                         alt={`Image ${index + 1} for ${deal.title}`}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain cursor-pointer"
                       />
                     )}
+                    
+                    {/* Image counter indicator */}
+                    <div className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                      {index + 1} / {mediaItems.length}
+                    </div>
                   </div>
                 </SwiperSlide>
               ))}
@@ -243,6 +481,151 @@ export default function SubdomainOffMarketDetail({ id }) {
           </a>
         </div>
       </div>
+
+      {/* Lightbox Modal */}
+      {lightboxOpen && mediaItems.length > 0 && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center" 
+          onClick={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lightbox-title"
+        >
+          <div className="relative max-w-7xl w-full h-full flex items-center justify-center p-4">
+            {/* Hidden title for screen readers */}
+            <h2 id="lightbox-title" className="sr-only">{deal.title} - Image Gallery</h2>
+            {/* Close Button */}
+            <button
+              ref={closeButtonRef}
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white"
+              aria-label="Close lightbox"
+            >
+              <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+
+            {/* Previous Button */}
+            {mediaItems.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  prevImage();
+                }}
+                className="absolute left-4 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white"
+                aria-label="Previous image"
+              >
+                <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+                  <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+              </button>
+            )}
+
+            {/* Main Media Content */}
+            <div 
+              className="relative w-full h-full max-h-[90vh] flex items-center justify-center lightbox-media" 
+              onClick={(e) => {
+                e.stopPropagation();
+                // Clicking on the image area (when not a video) advances to next image
+                if (mediaItems[currentSlideIndex].type !== 'video') {
+                  nextImage();
+                }
+              }}
+            >
+              {mediaItems[currentSlideIndex].type === 'video' ? (
+                <div className="w-full h-full flex items-center justify-center">
+                  <video
+                    src={mediaItems[currentSlideIndex].url}
+                    className="max-w-full max-h-[90vh] object-contain"
+                    controls
+                    autoPlay
+                    onClick={(e) => e.stopPropagation()} // Don't advance when clicking video
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
+              ) : (
+                <img
+                  src={mediaItems[currentSlideIndex].url}
+                  alt={`${deal.title} - Image ${currentSlideIndex + 1}`}
+                  className="max-w-full max-h-[90vh] object-contain cursor-pointer"
+                  style={{ width: 'auto', height: 'auto' }} // Let browser determine optimal size
+                />
+              )}
+            </div>
+
+            {/* Next Button */}
+            {mediaItems.length > 1 && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  nextImage();
+                }}
+                className="absolute right-4 text-white hover:text-gray-300 z-10 bg-black bg-opacity-50 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-white"
+                aria-label="Next image"
+              >
+                <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8" xmlns="http://www.w3.org/2000/svg">
+                  <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+              </button>
+            )}
+
+            {/* Image Counter and Keyboard Instructions */}
+            <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center justify-center gap-2">
+              <div className="bg-black bg-opacity-60 text-white px-3 py-1 rounded-full text-sm">
+                {currentSlideIndex + 1} / {mediaItems.length}
+              </div>
+              <div className="bg-black bg-opacity-50 text-white text-xs px-3 py-1 rounded-full">
+                Use ← → arrows to navigate • Esc to close • Space for video play/pause
+              </div>
+            </div>
+
+            {/* Thumbnail Strip */}
+            {mediaItems.length > 1 && (
+              <div className="absolute bottom-16 left-0 right-0 flex justify-center gap-2 overflow-x-auto py-2 px-4 bg-black bg-opacity-50">
+                {mediaItems.map((item, index) => (
+                  <div
+                    key={`thumb-${index}`}
+                    className={`relative h-16 w-16 flex-shrink-0 cursor-pointer rounded overflow-hidden border-2 ${index === currentSlideIndex ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100'} transition-all`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentSlideIndex(index);
+                    }}
+                  >
+                    {item.type === 'video' ? (
+                      <div className="w-full h-full bg-black flex items-center justify-center">
+                        {/* Video Preview Thumbnail */}
+                        <img 
+                          src={item.thumbnailUrl || '/placeholder-property.jpg'}
+                          alt={`Video thumbnail ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Video Icon */}
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path fillRule="evenodd" d="M10 18V6l8 6-8 6z"></path>
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={item.url}
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    <div className="absolute bottom-0 right-0 bg-black bg-opacity-60 text-white text-xs px-1">
+                      {index + 1}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
