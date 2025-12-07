@@ -31,6 +31,8 @@ export default function NewOffMarketDealPage() {
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [uploadingVideos, setUploadingVideos] = useState([]);
+  const [videoProgress, setVideoProgress] = useState({});
   const [propertyTypeOptions, setPropertyTypeOptions] = useState([]);
   const [propertySubTypeOptions, setPropertySubTypeOptions] = useState([]);
 
@@ -56,10 +58,26 @@ export default function NewOffMarketDealPage() {
     }));
   };
 
-  const handleFileUpload = async (file, type) => {
+  const handleFileUpload = async (file, type, fileId = null) => {
     if (!file) return;
 
     setUploading(true);
+    
+    // Create a simulated progress update function for video uploads
+    let progressInterval;
+    if (type === 'video' && fileId) {
+      // Start simulated progress updates
+      progressInterval = setInterval(() => {
+        setVideoProgress(prev => {
+          // If progress is less than 90%, increment it
+          if (prev[fileId] < 90) {
+            return { ...prev, [fileId]: prev[fileId] + Math.floor(Math.random() * 10) };
+          }
+          return prev;
+        });
+      }, 500);
+    }
+    
     try {
       const response = await uploadFile(file);
       const fileUrl = response.fileUrl;
@@ -81,10 +99,30 @@ export default function NewOffMarketDealPage() {
           ...prev,
           videos: [...prev.videos, { videoUrl: fileUrl }]
         }));
+        
+        if (fileId) {
+          // Set progress to 100% when upload is complete
+          setVideoProgress(prev => ({ ...prev, [fileId]: 100 }));
+          
+          // Remove video from uploading list after a delay
+          setTimeout(() => {
+            setUploadingVideos(prev => prev.filter(video => video.id !== fileId));
+            setVideoProgress(prev => {
+              const newProgress = { ...prev };
+              delete newProgress[fileId];
+              return newProgress;
+            });
+          }, 1500);
+        }
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to upload file');
+      if (fileId) {
+        // Mark as failed in progress
+        setVideoProgress(prev => ({ ...prev, [fileId]: -1 }));
+      }
     } finally {
+      if (progressInterval) clearInterval(progressInterval);
       setUploading(false);
     }
   };
@@ -105,10 +143,28 @@ export default function NewOffMarketDealPage() {
     }
   };
 
-  const handleMultipleFilesUpload = async (files, type) => {
+  const handleMultipleFilesUpload = async (files, type, fileIds = []) => {
     if (!files || files.length === 0) return;
 
     setUploading(true);
+    
+    // Create progress tracking for videos
+    let progressIntervals = {};
+    if (type === 'video' && fileIds.length > 0) {
+      // Start simulated progress updates for each file
+      fileIds.forEach((fileId, index) => {
+        progressIntervals[fileId] = setInterval(() => {
+          setVideoProgress(prev => {
+            // If progress is less than 90%, increment it randomly
+            if (prev[fileId] < 90) {
+              return { ...prev, [fileId]: prev[fileId] + Math.floor(Math.random() * 8) };
+            }
+            return prev;
+          });
+        }, 600 + (index * 100)); // Stagger progress updates for visual effect
+      });
+    }
+    
     try {
       const fileArray = Array.from(files);
       const response = await uploadFiles(fileArray);
@@ -130,10 +186,35 @@ export default function NewOffMarketDealPage() {
           ...prev,
           videos: [...prev.videos, ...newVideos]
         }));
+        
+        // Set all videos to 100% when upload is complete
+        if (fileIds.length > 0) {
+          fileIds.forEach(fileId => {
+            setVideoProgress(prev => ({ ...prev, [fileId]: 100 }));
+          });
+          
+          // Remove videos from uploading list after a delay
+          setTimeout(() => {
+            setUploadingVideos(prev => prev.filter(video => !fileIds.includes(video.id)));
+            setVideoProgress(prev => {
+              const newProgress = { ...prev };
+              fileIds.forEach(fileId => delete newProgress[fileId]);
+              return newProgress;
+            });
+          }, 1500);
+        }
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to upload files');
+      // Mark all as failed
+      if (fileIds.length > 0) {
+        fileIds.forEach(fileId => {
+          setVideoProgress(prev => ({ ...prev, [fileId]: -1 }));
+        });
+      }
     } finally {
+      // Clear all progress intervals
+      Object.values(progressIntervals).forEach(interval => clearInterval(interval));
       setUploading(false);
     }
   };
@@ -153,10 +234,29 @@ export default function NewOffMarketDealPage() {
   const handleVideoUpload = (e) => {
     const files = e.target.files;
     if (files && files.length > 0) {
+      // Add files to uploadingVideos array to track them
+      const fileArray = Array.from(files);
+      const filesWithIds = fileArray.map(file => ({
+        id: Math.random().toString(36).substring(2, 15),
+        name: file.name,
+        size: file.size,
+        file
+      }));
+      
+      setUploadingVideos(prev => [...prev, ...filesWithIds]);
+      
+      // Initialize progress for each file
+      filesWithIds.forEach(fileInfo => {
+        setVideoProgress(prev => ({
+          ...prev,
+          [fileInfo.id]: 0
+        }));
+      });
+      
       if (files.length === 1) {
-        handleFileUpload(files[0], 'video');
+        handleFileUpload(files[0], 'video', filesWithIds[0].id);
       } else {
-        handleMultipleFilesUpload(files, 'video');
+        handleMultipleFilesUpload(files, 'video', filesWithIds.map(f => f.id));
       }
     }
     e.target.value = ''; // Reset input
@@ -401,7 +501,7 @@ export default function NewOffMarketDealPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">Videos</label>
             <label className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded cursor-pointer w-fit mb-4">
               <FiUpload className="text-lg" />
-              <span>Upload Video(s)</span>
+              <span>{uploading ? 'Uploading...' : 'Upload Video(s)'}</span>
               <input
                 type="file"
                 accept="video/*"
@@ -411,6 +511,43 @@ export default function NewOffMarketDealPage() {
                 multiple
               />
             </label>
+            
+            {/* Video Upload Progress Indicators */}
+            {uploadingVideos.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-gray-700 mb-2">Video Processing</h3>
+                <div className="space-y-3 max-h-60 overflow-y-auto p-3 bg-gray-50 rounded-md border border-gray-200">
+                  {uploadingVideos.map((video) => {
+                    const progress = videoProgress[video.id] || 0;
+                    const isComplete = progress === 100;
+                    const isFailed = progress === -1;
+                    
+                    return (
+                      <div key={video.id} className="flex flex-col gap-1">
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="truncate max-w-xs">{video.name}</span>
+                          <span className="font-medium">
+                            {isFailed ? (
+                              <span className="text-red-600">Failed</span>
+                            ) : isComplete ? (
+                              <span className="text-green-600">Complete</span>
+                            ) : (
+                              `${progress}%`
+                            )}
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full ${isFailed ? 'bg-red-500' : isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
+                            style={{ width: `${isFailed ? 100 : progress}%`, transition: 'width 0.3s ease-in-out' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {formData.videos.length > 0 && (
               <div className="grid grid-cols-2 gap-4">
                 {formData.videos.map((vid, index) => (

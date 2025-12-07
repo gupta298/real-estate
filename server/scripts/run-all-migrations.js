@@ -133,25 +133,36 @@ async function runOperations() {
   skipCount = 0;
   errorCount = 0;
   
-  // Run seed operations after migrations
-  console.log('\n🌱 Running seeding operations...');
+  // Check if we're in production mode
+  const isProduction = process.env.NODE_ENV === 'production';
   
-  for (let i = 0; i < seedOperations.length; i++) {
-    const operation = seedOperations[i];
+  // Skip seeding in production unless explicitly requested
+  const shouldRunSeeding = !isProduction || process.env.FORCE_SEED === 'true';
+  
+  if (shouldRunSeeding) {
+    // Run seed operations after migrations
+    console.log('\n🌱 Running seeding operations...');
     
-    try {
-      console.log(`[${i + 1}/${seedOperations.length}] 🌱 Running ${operation.name} seeding...`);
-      const scriptPath = path.join(__dirname, operation.script);
-      execSync(`node "${scriptPath}"`, { 
-        stdio: 'inherit',
-        cwd: __dirname 
-      });
-      successCount++;
-      console.log(`✅ ${operation.name} seeding completed\n`);
-    } catch (error) {
-      console.error(`❌ ${operation.name} seeding failed: ${error.message}\n`);
-      errorCount++;
+    for (let i = 0; i < seedOperations.length; i++) {
+      const operation = seedOperations[i];
+      
+      try {
+        console.log(`[${i + 1}/${seedOperations.length}] 🌱 Running ${operation.name} seeding...`);
+        const scriptPath = path.join(__dirname, operation.script);
+        execSync(`node "${scriptPath}"`, { 
+          stdio: 'inherit',
+          cwd: __dirname 
+        });
+        successCount++;
+        console.log(`✅ ${operation.name} seeding completed\n`);
+      } catch (error) {
+        console.error(`❌ ${operation.name} seeding failed: ${error.message}\n`);
+        errorCount++;
+      }
     }
+  } else {
+    console.log('\n🌱 Skipping seeding operations in production mode');
+    console.log('   To force seeding in production, set env variable FORCE_SEED=true');
   }
   
   // Print summary for both migrations and seeding

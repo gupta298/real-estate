@@ -91,13 +91,18 @@ async function startProduction() {
     print('green', '✅ Client build exists!');
   }
   
-  // Step 2: Initialize database
-  print('bright', '🗄️ Initializing database...');
-  const dbResult = execute('npm run init-db', path.join(projectRoot, 'server'), false);
-  if (dbResult !== null) {
-    print('green', '✅ Database initialized!');
+  // Step 2: Check if database exists and initialize only if it doesn't
+  const dbPath = path.join(projectRoot, 'server', 'database', 'realestate.db');
+  if (!fs.existsSync(dbPath)) {
+    print('bright', '🗄️ Database not found, initializing...');
+    const dbResult = execute('npm run init-db', path.join(projectRoot, 'server'), false);
+    if (dbResult !== null) {
+      print('green', '✅ Database initialized!');
+    } else {
+      print('yellow', '⚠️ Database initialization had issues, but continuing...');
+    }
   } else {
-    print('yellow', '⚠️ Database initialization had issues, but continuing...');
+    print('green', '✅ Database already exists, skipping initialization');
   }
   
   // Step 3: Run migrations

@@ -506,16 +506,17 @@ export default function SubdomainOffMarketDetail({ id }) {
         </div>
       </div>
 
-      {/* Lightbox Modal */}
+      {/* Lightbox Modal - Full Screen */}
       {lightboxOpen && mediaItems.length > 0 && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center" 
+          className="fixed inset-0 bg-black z-50 flex items-center justify-center" 
           onClick={closeLightbox}
           role="dialog"
           aria-modal="true"
           aria-labelledby="lightbox-title"
+          style={{ height: '100vh', width: '100vw' }}
         >
-          <div className="relative max-w-7xl w-full h-full flex items-center justify-center p-4">
+          <div className="relative w-full h-full flex items-center justify-center">
             {/* Hidden title for screen readers */}
             <h2 id="lightbox-title" className="sr-only">{deal.title} - Image Gallery</h2>
             {/* Close Button */}
@@ -562,12 +563,13 @@ export default function SubdomainOffMarketDetail({ id }) {
                 <div className="w-full h-full flex items-center justify-center">
                   <video
                     src={mediaItems[currentSlideIndex].url}
-                    className="max-w-full max-h-[90vh] object-contain"
+                    className="object-contain"
                     style={{ 
-                      width: 'auto', 
-                      height: 'auto', 
-                      maxWidth: '95%',
-                      maxHeight: '85vh'
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100vw',
+                      maxHeight: '100vh',
+                      objectFit: 'contain'
                     }}
                     controls
                     autoPlay
@@ -580,13 +582,14 @@ export default function SubdomainOffMarketDetail({ id }) {
                 <img
                   src={mediaItems[currentSlideIndex].url}
                   alt={`${deal.title} - Image ${currentSlideIndex + 1}`}
-                  className="max-w-full max-h-[90vh] object-contain cursor-pointer"
+                  className="object-contain cursor-pointer"
                   style={{ 
-                    width: 'auto', 
-                    height: 'auto', 
-                    maxWidth: '95%', // Allow a little margin on sides
-                    maxHeight: '85vh' // Allow room for controls and counter
-                  }} // Optimized sizing
+                    width: 'auto',
+                    height: 'auto',
+                    maxWidth: '100vw',
+                    maxHeight: '100vh',
+                    objectFit: 'contain'
+                  }} // Full screen sizing
                 />
               )}
             </div>
@@ -608,18 +611,18 @@ export default function SubdomainOffMarketDetail({ id }) {
             )}
 
             {/* Image Counter and Keyboard Instructions */}
-            <div className="absolute bottom-4 left-0 right-0 flex flex-col items-center justify-center gap-2">
-              <div className="bg-black bg-opacity-60 text-white px-3 py-1 rounded-full text-sm">
+            <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center justify-center gap-2">
+              <div className="bg-black bg-opacity-80 text-white px-4 py-1 rounded-full text-sm">
                 {currentSlideIndex + 1} / {mediaItems.length}
               </div>
-              <div className="bg-black bg-opacity-50 text-white text-xs px-3 py-1 rounded-full">
+              <div className="bg-black bg-opacity-70 text-white text-xs px-4 py-1 rounded-full">
                 Use ← → arrows to navigate • Esc to close • Space for video play/pause
               </div>
             </div>
 
             {/* Thumbnail Strip */}
             {mediaItems.length > 1 && (
-              <div className="absolute bottom-16 left-0 right-0 flex justify-center gap-2 overflow-x-auto py-2 px-4 bg-black bg-opacity-50">
+              <div className="absolute bottom-20 left-0 right-0 flex justify-center gap-2 overflow-x-auto py-2 px-4 bg-black bg-opacity-70">
                 {mediaItems.map((item, index) => (
                   <div
                     key={`thumb-${index}`}

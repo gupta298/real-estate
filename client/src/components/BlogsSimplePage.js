@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { getBlogs } from '@/utils/api';
 import { isSubdomain } from '@/utils/subdomainRouting';
+import { FiX } from 'react-icons/fi';
 
 /**
  * Simple blog listing page with proper styling but minimal React dependencies
@@ -191,6 +192,50 @@ export default function BlogsSimplePage() {
       if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
   }, [state.loading, state.blogs.length]);
+
+  // Handle keyboard events for lightbox navigation
+  useEffect(() => {
+    if (!lightboxImages || typeof window === 'undefined') return;
+    
+    const handleKeyboardNavigation = (e) => {
+      if (e.key === 'Escape') {
+        closeLightbox();
+      } else if (e.key === 'Tab') {
+        // Handle focus trap inside lightbox
+        const lightbox = document.querySelector('[role="dialog"]');
+        if (!lightbox) return;
+        
+        const focusableElements = lightbox.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        
+        if (e.shiftKey && document.activeElement === firstElement) {
+          lastElement.focus();
+          e.preventDefault();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          firstElement.focus();
+          e.preventDefault();
+        }
+      } else if (e.key === ' ' || e.key === 'Enter') {
+        // Space or Enter toggles play/pause for videos
+        const activeVideo = document.querySelector('.lightbox-media video');
+        if (activeVideo) {
+          if (activeVideo.paused) {
+            activeVideo.play().catch(() => {});
+          } else {
+            activeVideo.pause();
+          }
+          e.preventDefault();
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyboardNavigation);
+    return () => window.removeEventListener('keydown', handleKeyboardNavigation);
+  }, [lightboxImages]);
   
   // Infinite scroll observer effect (similar to main page)
   useEffect(() => {
@@ -259,19 +304,39 @@ export default function BlogsSimplePage() {
     }));
   }
 
+  // Reference to store previously focused element
+  const previousFocusRef = useRef(null);
+  
+  // Lightbox close button ref for auto-focusing
+  const closeButtonRef = useRef(null);
+  
   // Open lightbox for image
   function openLightbox(image, blogTitle, e) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
+    
+    // Store current active element to restore focus later
+    if (typeof document !== 'undefined') {
+      previousFocusRef.current = document.activeElement;
+    }
+    
     setState(prev => ({
       ...prev,
       lightboxImages: { image, blogTitle }
     }));
+    
     // Prevent scrolling when lightbox is open
     if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
       document.body.style.overflow = 'hidden';
+      
+      // Focus close button after a short delay to ensure it's rendered
+      setTimeout(() => {
+        if (closeButtonRef.current) {
+          closeButtonRef.current.focus();
+        }
+      }, 50);
     }
   }
 
@@ -295,6 +360,13 @@ export default function BlogsSimplePage() {
     // Restore scrolling
     if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
       document.body.style.overflow = 'unset';
+      
+      // Restore focus to previous element
+      setTimeout(() => {
+        if (previousFocusRef.current) {
+          previousFocusRef.current.focus();
+        }
+      }, 50);
     }
   }
   
@@ -475,53 +547,70 @@ export default function BlogsSimplePage() {
                     if (allMedia.length === 0) return null;
                     
                     return (
-                      <div className="relative h-64 w-full cursor-pointer" onClick={() => toggleBlogExpansion(blog.id)}>
-                        <div className="swiper swiper-initialized swiper-horizontal h-full w-full swiper-backface-hidden">
-                          <div className="swiper-wrapper">
-                            {allMedia.map((item, index) => (
-                              <div key={`${blog.id}-preview-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`} style={{ width: '100%' }}>
-                                <div className="relative h-64 w-full bg-black">
-                                  {item.type === 'video' ? (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <video 
-                                        src={item.videoUrl}
-                                        className="w-full h-full object-contain"
-                                        style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
-                                        muted
-                                        loop
-                                        playsInline
-                                        autoPlay
-                                        preload="auto"
-                                        onClick={e => e.stopPropagation()}
-                                      >
-                                        Your browser does not support the video tag.
-                                      </video>
-                                    </div>
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                      <img 
-                                        src={item.imageUrl || item.thumbnailUrl} 
-                                        alt={item.caption || blog.title || `Image ${index + 1}`} 
-                                        className="object-contain cursor-pointer"  
-                                        style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                      <div className="relative cursor-pointer" onClick={() => toggleBlogExpansion(blog.id)}>
+                        {/* Hint message */}
+                        <div className="text-center text-xs text-gray-500 mb-1">
+                          <span>Click on image/video to view in fullscreen</span>
+                        </div>
+                        <div className="relative h-64 w-full">
+                          <div className="swiper swiper-initialized swiper-horizontal h-full w-full swiper-backface-hidden">
+                            <div className="swiper-wrapper">
+                              {allMedia.map((item, index) => (
+                                <div key={`${blog.id}-preview-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`} style={{ width: '100%' }}>
+                                  <div className="relative h-64 w-full bg-black">
+                                    {item.type === 'video' ? (
+                                      <div 
+                                        className="w-full h-full flex items-center justify-center"
                                         onClick={e => {
                                           e.stopPropagation();
                                           openLightbox(item, blog.title, e);
                                         }}
-                                      />
-                                    </div>
-                                  )}
+                                      >
+                                        <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
+                                          <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                                          </svg>
+                                        </div>
+                                        <video 
+                                          src={item.videoUrl}
+                                          className="w-full h-full object-contain"
+                                          style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
+                                          muted
+                                          loop
+                                          playsInline
+                                          autoPlay
+                                          preload="auto"
+                                          onClick={e => e.stopPropagation()}
+                                        >
+                                          Your browser does not support the video tag.
+                                        </video>
+                                      </div>
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                        <img 
+                                          src={item.imageUrl || item.thumbnailUrl} 
+                                          alt={item.caption || blog.title || `Image ${index + 1}`} 
+                                          className="object-contain cursor-pointer"  
+                                          style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            openLightbox(item, blog.title, e);
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                          {allMedia.length > 1 && (
-                            <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal">
-                              {allMedia.map((_, index) => (
-                                <span key={index} className={`swiper-pagination-bullet ${index === 0 ? 'swiper-pagination-bullet-active' : ''}`}></span>
                               ))}
                             </div>
-                          )}
+                            {allMedia.length > 1 && (
+                              <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal">
+                                {allMedia.map((_, index) => (
+                                  <span key={index} className={`swiper-pagination-bullet ${index === 0 ? 'swiper-pagination-bullet-active' : ''}`}></span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -579,26 +668,30 @@ export default function BlogsSimplePage() {
         )}
       </div>
 
-      {/* Lightbox Modal */}
+      {/* Lightbox Modal - Full Screen */}
       {lightboxImages && (
         <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-black flex items-center justify-center" 
           onClick={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lightbox-title"
+          style={{ height: '100vh', width: '100vw' }}
         >
           <div 
-            className="relative w-full h-full max-w-7xl mx-auto px-4 py-8"
+            className="relative w-full h-full flex items-center justify-center"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Hidden title for screen readers */}
+            <h2 id="lightbox-title" className="sr-only">{lightboxImages.blogTitle} - Image Gallery</h2>
             {/* Close Button */}
             <button
+              ref={closeButtonRef}
               onClick={closeLightbox}
-              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
+              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-white"
               aria-label="Close lightbox"
             >
-              <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+              <FiX className="w-6 h-6" />
             </button>
 
             {/* Blog Title */}
@@ -609,12 +702,19 @@ export default function BlogsSimplePage() {
             )}
 
             {/* Media Content */}
-            <div className="relative h-[calc(100vh-120px)] w-full flex items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center lightbox-media">
               {lightboxImages.image.type === 'video' ? (
                 <video
                   src={lightboxImages.image.videoUrl}
                   controls
-                  className="max-w-full max-h-full object-contain"
+                  className="object-contain"
+                  style={{ 
+                    width: 'auto',
+                    height: 'auto',
+                    maxWidth: '100vw',
+                    maxHeight: '100vh',
+                    objectFit: 'contain'
+                  }}
                   autoPlay
                   preload="auto"
                 >
@@ -624,17 +724,26 @@ export default function BlogsSimplePage() {
                 <img
                   src={lightboxImages.image.imageUrl || lightboxImages.image.thumbnailUrl}
                   alt={lightboxImages.image.caption || lightboxImages.blogTitle || 'Expanded image'}
-                  className="max-w-full max-h-full object-contain"
+                  className="object-contain cursor-pointer"
+                  style={{ 
+                    width: 'auto',
+                    height: 'auto',
+                    maxWidth: '100vw',
+                    maxHeight: '100vh',
+                    objectFit: 'contain'
+                  }}
                 />
               )}
               
-              {lightboxImages.image.caption && (
-                <div className="absolute bottom-4 left-0 right-0 text-center">
-                  <p className="text-white bg-black bg-opacity-50 px-4 py-2 rounded inline-block">
-                    {lightboxImages.image.caption}
-                  </p>
+              {/* Image Counter and Keyboard Instructions */}
+              <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center justify-center gap-2">
+                <div className="bg-black bg-opacity-80 text-white px-4 py-1 rounded-full text-sm">
+                  {lightboxImages.image.caption || `${lightboxImages.blogTitle} - Image`}
                 </div>
-              )}
+                <div className="bg-black bg-opacity-70 text-white text-xs px-4 py-1 rounded-full">
+                  Press Esc to close • Space for video play/pause
+                </div>
+              </div>
             </div>
           </div>
         </div>
