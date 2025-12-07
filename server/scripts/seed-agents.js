@@ -175,8 +175,60 @@ function generateAgents() {
 
 const sampleAgents = generateAgents();
 
-function seedAgents() {
-  console.log('🌱 Seeding agents...');
+// Determine if we're using PostgreSQL or SQLite
+const isPostgres = process.env.DATABASE_URL || process.env.NODE_ENV === 'production';
+
+async function seedAgentsPostgres() {
+  console.log('🌱 Seeding agents for PostgreSQL...');
+  
+  try {
+    // In PostgreSQL, we can do this within a transaction
+    await db.run('BEGIN;');
+    
+    // Clear existing agents - using CASCADE to handle foreign keys
+    await db.run('DELETE FROM agents;');
+    
+    // Insert all agents
+    for (const agent of sampleAgents) {
+      await db.run(`
+        INSERT INTO agents (
+          firstName, lastName, email, phone, licenseNumber, bio,
+          specialties, yearsExperience, profileImageUrl, isBroker, isActive, displayOrder
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `, [
+        agent.firstName,
+        agent.lastName,
+        agent.email,
+        agent.phone,
+        agent.licenseNumber,
+        agent.bio,
+        agent.specialties,
+        agent.yearsExperience,
+        agent.profileImageUrl || null,
+        agent.isBroker ? true : false,  // Use boolean for PostgreSQL
+        agent.isActive ? true : false,  // Use boolean for PostgreSQL
+        agent.displayOrder
+      ]);
+    }
+    
+    // Commit transaction
+    await db.run('COMMIT;');
+    console.log(`✅ ${sampleAgents.length} agents seeded successfully!`);
+    process.exit(0);
+  } catch (error) {
+    console.error('Error seeding agents:', error);
+    // Rollback on error
+    try {
+      await db.run('ROLLBACK;');
+    } catch (rollbackError) {
+      console.error('Error during rollback:', rollbackError);
+    }
+    process.exit(1);
+  }
+}
+
+function seedAgentsSQLite() {
+  console.log('🌱 Seeding agents for SQLite...');
 
   // Disable foreign key constraints temporarily to allow deletion
   db.run('PRAGMA foreign_keys = OFF', (err) => {
@@ -235,6 +287,14 @@ function seedAgents() {
       });
     });
   });
+}
+
+async function seedAgents() {
+  if (isPostgres) {
+    await seedAgentsPostgres();
+  } else {
+    seedAgentsSQLite();
+  }
 }
 
 // Check if database is initialized

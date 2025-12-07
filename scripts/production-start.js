@@ -91,27 +91,18 @@ async function startProduction() {
     print('green', '✅ Client build exists!');
   }
   
-  // Step 2: Check if database exists and initialize only if it doesn't
-  const dbPath = path.join(projectRoot, 'server', 'database', 'realestate.db');
-  if (!fs.existsSync(dbPath)) {
-    print('bright', '🗄️ Database not found, initializing...');
-    const dbResult = execute('npm run init-db', path.join(projectRoot, 'server'), false);
-    if (dbResult !== null) {
-      print('green', '✅ Database initialized!');
-    } else {
-      print('yellow', '⚠️ Database initialization had issues, but continuing...');
-    }
-  } else {
-    print('green', '✅ Database already exists, skipping initialization');
-  }
+  // Step 2: Assume database is already set up in Render
+  print('bright', '🗃️ Assuming database is already set up in Render...');
+  print('green', '✅ Skipping database initialization');
   
-  // Step 3: Run migrations
-  print('bright', '🔄 Running database migrations...');
-  const migrationResult = execute('npm run migrate-all', path.join(projectRoot, 'server'), false);
-  if (migrationResult !== null) {
-    print('green', '✅ Migrations completed!');
-  } else {
-    print('yellow', '⚠️ Migrations had issues, but continuing...');
+  // For local SQLite development only - not used in Render
+  if (!process.env.DATABASE_URL && process.env.NODE_ENV !== 'production') {
+    // Check if SQLite database exists
+    const dbPath = path.join(projectRoot, 'server', 'database', 'realestate.db');
+    if (!fs.existsSync(dbPath)) {
+      print('yellow', '⚠️ Warning: Running in development mode but SQLite database not found');
+      print('yellow', '   You may want to run: cd server && npm run init-db && npm run simple-seed');
+    }
   }
   
   // Step 4: Start the server

@@ -20,6 +20,19 @@ services:
         value: 10000
       - key: CORS_ORIGIN
         value: https://blueflagindy.com,https://www.blueflagindy.com,https://offmarket.blueflagindy.com,https://blog.blueflagindy.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: real-estate-db
+          property: connectionString
     healthCheckPath: /api/health
-    # Automatically handle database setup
     autoDeploy: true
+    # Ensure the web service waits for the database to be ready
+    dependsOn:
+      - real-estate-db
+
+  # PostgreSQL Database
+  - type: pserv
+    name: real-estate-db
+    plan: free
+    env: postgres
+    ipAllowList: []  # Allow only internal connections

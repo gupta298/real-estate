@@ -12,16 +12,14 @@
     "init-db": "node scripts/init-db.js",
     "sync-mls": "node scripts/sync-mls.js",
     "seed": "node scripts/seed-sample-data.js",
-    "seed-agents": "node scripts/seed-agents.js",
-    "seed-off-market": "node scripts/seed-off-market-deals.js",
-    "seed-blogs": "node scripts/seed-blogs.js",
+    "simple-seed": "node scripts/simple-seed.js",
     "create-admin": "node scripts/create-admin.js",
     "migrate-videos": "node scripts/migrate-video-schema.js",
     "migrate-thumbnail": "node scripts/migrate-off-market-thumbnail.js",
     "migrate-blog-thumbnail": "node scripts/migrate-blog-thumbnail.js",
     "migrate-all": "node scripts/run-all-migrations.js",
-    "seed-all": "npm run seed-agents && npm run seed-off-market && npm run seed-blogs",
-    "setup": "npm run init-db && npm run migrate-all && npm run seed-all"
+    "seed-all": "npm run simple-seed",
+    "setup": "npm run init-db && npm run migrate-all && npm run simple-seed"
   },
   "dependencies": {
     "axios": "^1.6.0",
@@ -31,6 +29,7 @@
     "express": "^4.18.2",
     "multer": "^2.0.2",
     "node-cron": "^3.0.3",
+    "pg": "^8.11.3",
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.1"
   },
