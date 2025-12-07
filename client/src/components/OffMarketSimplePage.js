@@ -755,22 +755,32 @@ export default function OffMarketSimplePage() {
                 // Collect all media (images + videos) for carousel, sorted by displayOrder
                 const allMedia = [];
                 
-                if (deal.thumbnailUrl) {
-                  if (deal.thumbnailType === 'video') {
+                // Account for case sensitivity in API response fields
+                const thumbUrl = deal.thumbnailurl || deal.thumbnailUrl;
+                const thumbType = deal.thumbnailtype || deal.thumbnailType;
+                
+                if (thumbUrl) {
+                  if (thumbType === 'video') {
                     allMedia.push({
-                      videoUrl: deal.thumbnailUrl,
-                      thumbnailUrl: deal.thumbnailUrl,
+                      videourl: thumbUrl, // lowercase to match API response
+                      videoUrl: thumbUrl, // Include uppercase too for compatibility
+                      thumbnailurl: thumbUrl, // lowercase for API response
+                      thumbnailUrl: thumbUrl, // Include uppercase too
                       caption: 'Thumbnail',
                       type: 'video',
-                      displayOrder: -1 // Thumbnail first
+                      displayorder: -1, // lowercase for API
+                      displayOrder: -1 // uppercase for compatibility
                     });
                   } else {
                     allMedia.push({
-                      imageUrl: deal.thumbnailUrl,
-                      thumbnailUrl: deal.thumbnailUrl,
+                      imageurl: thumbUrl, // lowercase for API response
+                      imageUrl: thumbUrl, // Include uppercase too
+                      thumbnailurl: thumbUrl, // lowercase for API
+                      thumbnailUrl: thumbUrl, // uppercase for compatibility
                       caption: 'Thumbnail',
                       type: 'image',
-                      displayOrder: -1 // Thumbnail first
+                      displayorder: -1, // lowercase for API
+                      displayOrder: -1 // uppercase for compatibility
                     });
                   }
                 }
@@ -778,18 +788,43 @@ export default function OffMarketSimplePage() {
                 // Add images, filtering out duplicates
                 if (deal.images && deal.images.length > 0) {
                   const uniqueImages = deal.images.filter(img => {
-                    const imgUrl = img.imageUrl || img.thumbnailUrl;
-                    return !deal.thumbnailUrl || imgUrl !== deal.thumbnailUrl;
+                    // Account for case sensitivity in API response
+                    const imgUrl = img.imageurl || img.imageUrl || img.thumbnailurl || img.thumbnailUrl;
+                    return !thumbUrl || imgUrl !== thumbUrl;
                   });
-                  allMedia.push(...uniqueImages.map(img => ({ ...img, type: 'image' })));
+                  allMedia.push(...uniqueImages.map(img => ({
+                    ...img,
+                    type: 'image',
+                    // Ensure both lowercase and uppercase variants exist for compatibility
+                    imageurl: img.imageurl,
+                    imageUrl: img.imageurl || img.imageUrl,
+                    thumbnailurl: img.thumbnailurl,
+                    thumbnailUrl: img.thumbnailurl || img.thumbnailUrl,
+                    // Handle both versions of displayOrder
+                    displayorder: img.displayorder || img.displayOrder || 0,
+                    displayOrder: img.displayorder || img.displayOrder || 0
+                  })));
                 }
                 
                 // Add videos, filtering out duplicates
                 if (deal.videos && deal.videos.length > 0) {
                   const uniqueVideos = deal.videos.filter(vid => {
-                    return !deal.thumbnailUrl || vid.videoUrl !== deal.thumbnailUrl;
+                    // Account for case sensitivity in API response
+                    const vidUrl = vid.videourl || vid.videoUrl;
+                    return !thumbUrl || vidUrl !== thumbUrl;
                   });
-                  allMedia.push(...uniqueVideos.map(vid => ({ ...vid, type: 'video' })));
+                  allMedia.push(...uniqueVideos.map(vid => ({
+                    ...vid,
+                    type: 'video',
+                    // Ensure both lowercase and uppercase variants exist for compatibility
+                    videourl: vid.videourl,
+                    videoUrl: vid.videourl || vid.videoUrl,
+                    thumbnailurl: vid.thumbnailurl,
+                    thumbnailUrl: vid.thumbnailurl || vid.thumbnailUrl,
+                    // Handle both versions of displayOrder
+                    displayorder: vid.displayorder || vid.displayOrder || 999,
+                    displayOrder: vid.displayorder || vid.displayOrder || 999
+                  })));
                 }
                 
                 // Sort by displayOrder
@@ -813,7 +848,7 @@ export default function OffMarketSimplePage() {
                                   {item.type === 'video' ? (
                                     <div className="w-full h-full flex items-center justify-center bg-black">
                                       <video
-                                        src={getVideoUrl(item.videoUrl)}
+                                        src={getVideoUrl(item.videourl || item.videoUrl)}
                                         className="w-full h-full object-contain"
                                         style={{ maxWidth: '100%', maxHeight: '100%' }}
                                         muted
@@ -828,7 +863,7 @@ export default function OffMarketSimplePage() {
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-gray-100 relative">
                                       <Image
-                                        src={getImageUrl(item.imageUrl || item.thumbnailUrl)}
+                                        src={getImageUrl(item.imageurl || item.imageUrl || item.thumbnailurl || item.thumbnailUrl)}
                                         alt={item.caption || deal.title || `Image ${index + 1}`}
                                         fill
                                         className="object-cover"

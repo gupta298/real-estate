@@ -174,9 +174,21 @@ export default function SubdomainOffMarketDetail({ id }) {
   // Create mediaItems from deal images and videos
   // Move this up before functions that depend on it
   const mediaItems = deal ? [
-    ...(deal.images || []).map(img => ({ ...img, type: 'image', url: img.imageUrl, displayOrder: img.displayOrder || 0 })),
-    ...(deal.videos || []).map(vid => ({ ...vid, type: 'video', url: vid.videoUrl, displayOrder: vid.displayOrder || 999 }))
-  ].sort((a, b) => a.displayOrder - b.displayOrder) : [];
+    // Correct the case to match API response: 'imageurl' instead of 'imageUrl'
+    ...(deal.images || []).map(img => ({ 
+      ...img, 
+      type: 'image', 
+      url: img.imageurl || img.imageUrl, // Try both versions to be safe
+      displayOrder: img.displayorder || img.displayOrder || 0 
+    })),
+    // Correct the case for videos too: 'videourl' instead of 'videoUrl'
+    ...(deal.videos || []).map(vid => ({ 
+      ...vid, 
+      type: 'video', 
+      url: vid.videourl || vid.videoUrl, // Try both versions to be safe
+      displayOrder: vid.displayorder || vid.displayOrder || 999 
+    }))
+  ].sort((a, b) => (a.displayOrder || a.displayorder || 0) - (b.displayOrder || b.displayorder || 0)) : [];
 
   // Navigate to next image in lightbox
   const nextImage = () => {

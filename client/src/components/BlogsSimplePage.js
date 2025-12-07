@@ -570,24 +570,33 @@ export default function BlogsSimplePage() {
                   {(() => {
                     // Collect all media (images + videos), similar to main page
                     const allMedia = [];
-                    const thumbnailUrl = blog.thumbnailUrl;
+                    
+                    // Account for case sensitivity in API responses
+                    const thumbnailUrl = blog.thumbnailurl || blog.thumbnailUrl;
+                    const thumbnailType = blog.thumbnailtype || blog.thumbnailType;
                     
                     if (thumbnailUrl) {
-                      if (blog.thumbnailType === 'video') {
+                      if (thumbnailType === 'video') {
                         allMedia.push({
-                          videoUrl: thumbnailUrl,
-                          thumbnailUrl: thumbnailUrl,
+                          videourl: thumbnailUrl, // lowercase for API
+                          videoUrl: thumbnailUrl, // uppercase for backwards compatibility
+                          thumbnailurl: thumbnailUrl, // lowercase for API
+                          thumbnailUrl: thumbnailUrl, // uppercase for compatibility
                           caption: 'Thumbnail',
                           type: 'video',
-                          displayOrder: -1 // Thumbnail first
+                          displayorder: -1, // lowercase for API
+                          displayOrder: -1 // uppercase for compatibility
                         });
                       } else {
                         allMedia.push({
-                          imageUrl: thumbnailUrl,
-                          thumbnailUrl: thumbnailUrl,
+                          imageurl: thumbnailUrl, // lowercase for API
+                          imageUrl: thumbnailUrl, // uppercase for compatibility
+                          thumbnailurl: thumbnailUrl, // lowercase for API
+                          thumbnailUrl: thumbnailUrl, // uppercase for compatibility
                           caption: 'Thumbnail',
                           type: 'image',
-                          displayOrder: -1 // Thumbnail first
+                          displayorder: -1, // lowercase for API
+                          displayOrder: -1 // uppercase for compatibility
                         });
                       }
                     }
@@ -595,18 +604,45 @@ export default function BlogsSimplePage() {
                     // Add images, filtering out duplicates
                     if (blog.images && blog.images.length > 0) {
                       const uniqueImages = blog.images.filter(img => {
-                        const imgUrl = img.imageUrl || img.thumbnailUrl;
+                        // Account for case sensitivity in API response
+                        const imgUrl = img.imageurl || img.imageUrl || img.thumbnailurl || img.thumbnailUrl;
                         return !thumbnailUrl || imgUrl !== thumbnailUrl;
                       });
-                      allMedia.push(...uniqueImages.map(img => ({ ...img, type: 'image' })));
+                      
+                      allMedia.push(...uniqueImages.map(img => ({
+                        ...img,
+                        type: 'image',
+                        // Ensure both lowercase and uppercase variants exist for compatibility
+                        imageurl: img.imageurl,
+                        imageUrl: img.imageurl || img.imageUrl,
+                        thumbnailurl: img.thumbnailurl,
+                        thumbnailUrl: img.thumbnailurl || img.thumbnailUrl,
+                        // Handle both versions of displayOrder
+                        displayorder: img.displayorder || img.displayOrder || 0,
+                        displayOrder: img.displayorder || img.displayOrder || 0
+                      })));
                     }
                     
                     // Add videos, filtering out duplicates
                     if (blog.videos && blog.videos.length > 0) {
                       const uniqueVideos = blog.videos.filter(vid => {
-                        return !thumbnailUrl || vid.videoUrl !== thumbnailUrl;
+                        // Account for case sensitivity in API response
+                        const vidUrl = vid.videourl || vid.videoUrl;
+                        return !thumbnailUrl || vidUrl !== thumbnailUrl;
                       });
-                      allMedia.push(...uniqueVideos.map(vid => ({ ...vid, type: 'video' })));
+                      
+                      allMedia.push(...uniqueVideos.map(vid => ({
+                        ...vid,
+                        type: 'video',
+                        // Ensure both lowercase and uppercase variants exist for compatibility
+                        videourl: vid.videourl,
+                        videoUrl: vid.videourl || vid.videoUrl,
+                        thumbnailurl: vid.thumbnailurl,
+                        thumbnailUrl: vid.thumbnailurl || vid.thumbnailUrl,
+                        // Handle both versions of displayOrder
+                        displayorder: vid.displayorder || vid.displayOrder || 0,
+                        displayOrder: vid.displayorder || vid.displayOrder || 0
+                      })));
                     }
                     
                     // Sort by displayOrder
@@ -623,8 +659,9 @@ export default function BlogsSimplePage() {
                               // Extract the first item safely to avoid TDZ errors
                               const item = allMedia[0] || {};
                               const mediaType = item.type || 'image';
-                              const videoUrl = item.videoUrl || '';
-                              const imageUrl = item.imageUrl || item.thumbnailUrl || '';
+                              // Account for case sensitivity in field names
+                              const videoUrl = item.videourl || item.videoUrl || '';
+                              const imageUrl = item.imageurl || item.imageUrl || item.thumbnailurl || item.thumbnailUrl || '';
                               const caption = item.caption || '';
                               const blogTitle = blog.title || 'Blog Post';
                               
@@ -648,7 +685,7 @@ export default function BlogsSimplePage() {
                                         </svg>
                                       </div>
                                       <video 
-                                        src={getVideoUrl(videoUrl)}
+                                        src={getVideoUrl(item.videourl || item.videoUrl)}
                                         className="w-full h-full object-contain"
                                         style={{ maxWidth: '100%', maxHeight: '100%' }}
                                         muted
@@ -759,8 +796,9 @@ export default function BlogsSimplePage() {
         // Get current media item
         const currentItem = allMedia[currentIndex] || state.lightboxImages?.image || {};
         const mediaType = currentItem?.type || 'image';
-        const imageUrl = currentItem?.imageUrl || currentItem?.thumbnailUrl || '';
-        const videoUrl = currentItem?.videoUrl || '';
+        // Account for case sensitivity in field names
+        const imageUrl = currentItem?.imageurl || currentItem?.imageUrl || currentItem?.thumbnailurl || currentItem?.thumbnailUrl || '';
+        const videoUrl = currentItem?.videourl || currentItem?.videoUrl || '';
         const caption = currentItem?.caption || '';
         
         // Navigation functions
@@ -856,7 +894,7 @@ export default function BlogsSimplePage() {
                 {mediaType === 'video' ? (
                   <video
                     key={videoUrl} /* Key helps React re-render when source changes */
-                    src={getVideoUrl(videoUrl)}
+                    src={getVideoUrl(currentItem?.videourl || currentItem?.videoUrl)}
                     controls
                     className="object-contain cursor-pointer"
                     style={{ 
