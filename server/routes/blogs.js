@@ -2,6 +2,91 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 
+// Diagnostic route to analyze performance issues
+router.get('/diagnostic', async (req, res) => {
+  console.log('🔍 Running diagnostic checks for blog API');
+  
+  const diagnosticResults = {
+    tests: [],
+    issues: []
+  };
+  
+  const addTest = (name, success, duration, details = null) => {
+    diagnosticResults.tests.push({ name, success, duration, details });
+    if (!success) {
+      diagnosticResults.issues.push({ name, details });
+    }
+    console.log(`${success ? '✅' : '❌'} ${name}: ${duration}ms`);
+  };
+
+  try {
+    // Test 1: Basic DB connection
+    const startConnection = Date.now();
+    let client;
+    try {
+      client = await db.pool.connect();
+      const connectionTime = Date.now() - startConnection;
+      addTest('Database connection', true, connectionTime);
+    } catch (err) {
+      const connectionTime = Date.now() - startConnection;
+      addTest('Database connection', false, connectionTime, err.message);
+      return res.json(diagnosticResults);
+    }
+    
+    // Test 2: Simple query
+    try {
+      const startSimple = Date.now();
+      await client.query('SELECT 1');
+      const simpleTime = Date.now() - startSimple;
+      addTest('Simple query', true, simpleTime);
+    } catch (err) {
+      addTest('Simple query', false, Date.now() - startSimple, err.message);
+    }
+    
+    // Test 3: Check blogs table exists
+    try {
+      const startTableCheck = Date.now();
+      const tableResult = await client.query(`SELECT to_regclass('public.blogs') IS NOT NULL as exists`);
+      const tableExists = tableResult.rows[0].exists;
+      const tableTime = Date.now() - startTableCheck;
+      addTest('Blogs table exists', tableExists, tableTime);
+    } catch (err) {
+      addTest('Blogs table exists', false, 0, err.message);
+    }
+    
+    // Test 4: Count blogs
+    try {
+      const startCount = Date.now();
+      const countResult = await client.query('SELECT COUNT(*) FROM blogs');
+      const blogCount = parseInt(countResult.rows[0].count);
+      const countTime = Date.now() - startCount;
+      addTest('Count blogs', true, countTime, { count: blogCount });
+    } catch (err) {
+      addTest('Count blogs', false, 0, err.message);
+    }
+    
+    // Test 5: Fetch one blog without joins
+    try {
+      const startFetch = Date.now();
+      const fetchResult = await client.query('SELECT * FROM blogs LIMIT 1');
+      const hasBlog = fetchResult.rows.length > 0;
+      const fetchTime = Date.now() - startFetch;
+      addTest('Fetch one blog', hasBlog, fetchTime, { blog: hasBlog ? fetchResult.rows[0].id : null });
+    } catch (err) {
+      addTest('Fetch one blog', false, 0, err.message);
+    }
+    
+    // Release the client
+    if (client) client.release();
+    
+    // Return diagnostic results
+    res.json(diagnosticResults);
+  } catch (err) {
+    console.error('Error in diagnostic route:', err);
+    res.status(500).json({ error: 'Diagnostic failed', message: err.message });
+  }
+});
+
 // Simple health check route to test database connectivity
 router.get('/health', async (req, res) => {
   console.log('🏥 Blog API health check requested');
@@ -20,6 +105,60 @@ router.get('/health', async (req, res) => {
   } catch (err) {
     console.error('❌ Database health check failed:', err.message);
     res.status(500).json({ status: 'unhealthy', error: err.message });
+  }
+});
+
+// Ultra-simple blogs route as a failsafe when the normal route is too slow
+router.get('/simple', async (req, res) => {
+  console.log('🔥 Using SIMPLE blogs route - emergency fallback');
+  
+  // Set response headers
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // Handle CORS
+  const origin = req.get('origin');
+  if (origin && (origin.includes('blog.blueflagindy.com') || origin.includes('onrender.com'))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With');
+  }
+  
+  try {
+    const startTime = Date.now();
+    // Use the direct pool connection for best performance
+    const client = await db.pool.connect();
+    
+    try {
+      // Just get the basic blog data without any complex joins
+      const result = await client.query('SELECT * FROM blogs WHERE isPublished = true ORDER BY createdAt DESC LIMIT 50');
+      const blogs = result.rows;
+      
+      client.release();
+      console.log(`✅ Simple blogs query completed in ${Date.now() - startTime}ms - Found ${blogs.length} blogs`);
+      
+      // Return just the basic blogs without images or videos
+      return res.json({
+        blogs: blogs,
+        simplified: true,
+        executionTime: `${Date.now() - startTime}ms`
+      });
+    } catch (err) {
+      client.release();
+      console.error('Error in simple blogs route:', err);
+      return res.status(500).json({ 
+        error: 'Failed to fetch blogs', 
+        details: err.message,
+        simplified: true 
+      });
+    }
+  } catch (err) {
+    console.error('Database connection error in simple blogs route:', err);
+    return res.status(500).json({ 
+      error: 'Failed to connect to database', 
+      details: err.message,
+      simplified: true 
+    });
   }
 });
 
