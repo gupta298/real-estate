@@ -464,7 +464,7 @@ db.get('SELECT 1 AS test', (err, row) => {
   if (err) {
     console.error('❌ Database connection error:', err);
   } else {
-    console.log('✅ Connected to SQLite database');
+    console.log('✅ Connected to PostgreSQL database');
   }
 });
 

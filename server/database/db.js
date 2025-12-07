@@ -5,56 +5,102 @@
 const path = require('path');
 const fs = require('fs');
 
-// Determine environment
-const isProduction = process.env.NODE_ENV === 'production' || !!process.env.DATABASE_URL;
+// IMPORTANT: Force production mode when DATABASE_URL is present
+// This ensures we don't create both database connections
+const forcedProductionMode = !!process.env.DATABASE_URL;
+const isProduction = process.env.NODE_ENV === 'production' || forcedProductionMode;
 
-let db;
+// Always log explicit database connection information
+console.log('---------- DATABASE CONNECTION ----------');
+console.log(`🔍 FORCED DATABASE MODE: ${forcedProductionMode ? 'PRODUCTION' : 'Auto-detect'}`);
+console.log(`🔍 FINAL DATABASE MODE: ${isProduction ? 'PRODUCTION (PostgreSQL)' : 'DEVELOPMENT (SQLite)'}`);
+console.log(`🔍 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`🔍 DATABASE_URL: ${process.env.DATABASE_URL ? 'is set' : 'not set'}`);
+console.log('-----------------------------------------');
+
+// Ensure only one instance gets created
+let db = null;
 
 if (isProduction) {
   // PostgreSQL for production
   console.log('🌐 Using PostgreSQL database');
   const { Pool } = require('pg');
 
-  // Configure PostgreSQL connection
+  // Configure PostgreSQL connection with more aggressive settings
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    // Add connection timeout and retry logic with increased timeouts
-    connectionTimeoutMillis: 30000,  // Increased from 10000ms to 30000ms
-    query_timeout: 30000,           // Increased from 10000ms to 30000ms
-    statement_timeout: 30000,       // Increased from 10000ms to 30000ms
-    max: 20,                        // Increased max connections from 10 to 20
-    idleTimeoutMillis: 60000        // Increased from 30000ms to 60000ms
+    // Even more aggressive timeout and connection settings
+    connectionTimeoutMillis: 60000,  // 1 minute connection timeout
+    query_timeout: 60000,           // 1 minute query timeout
+    statement_timeout: 60000,       // 1 minute statement timeout
+    max: 25,                        // Increased max connections to 25
+    idleTimeoutMillis: 300000,      // 5 minutes idle timeout
+    application_name: 'real-estate-website',  // For better identification in logs
   });
   
-  // Helper function to retry operations with exponential backoff
-  const retryOperation = async (operation, maxRetries = 3, initialDelay = 500) => {
+  // Add more robust error handling for the connection pool
+  pool.on('error', (err) => {
+    console.error('❌ PostgreSQL pool error:', err.message);
+    console.error('Stack trace:', err.stack);
+    // Try to recover from connection errors
+    if (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT') {
+      console.log('🔄 Attempting to reconnect to PostgreSQL...');
+    }
+  });
+  
+  // Enhanced helper function to retry operations with exponential backoff
+  const retryOperation = async (operation, maxRetries = 5, initialDelay = 1000) => {
     let lastError;
     let retries = 0;
     
+    // Log the initial attempt
+    console.log('🔄 Executing database operation with retry logic...');
+    
     while (retries < maxRetries) {
       try {
-        return await operation();
+        const startTime = Date.now();
+        const result = await operation();
+        const duration = Date.now() - startTime;
+        
+        // Log slow queries (taking more than 1 second)
+        if (duration > 1000) {
+          console.log(`⚠️ Slow query completed in ${duration}ms`);
+        }
+        
+        return result;
       } catch (error) {
         lastError = error;
-        const isTimeout = error.message && error.message.includes('timeout');
+        const isTimeout = error.message && (
+          error.message.includes('timeout') || 
+          error.message.includes('terminated') || 
+          error.message.includes('connection') ||
+          error.code === '57014' ||
+          error.code === '57P01' ||
+          error.code === '08006' ||
+          error.code === '08001'
+        );
         
-        if (!isTimeout) {
-          // Don't retry non-timeout errors
+        if (!isTimeout && retries >= 1) {
+          // Only retry connection or timeout related errors after first attempt
+          console.error('❌ Non-timeout error, not retrying:', error.message);
           throw error;
         }
         
         retries++;
         if (retries >= maxRetries) break;
         
-        // Calculate delay with exponential backoff (500ms, 1000ms, 2000ms...)
+        // Calculate delay with exponential backoff (1s, 2s, 4s, 8s, 16s)
         const delay = initialDelay * Math.pow(2, retries - 1);
-        console.log(`⚠️ Query timeout. Retrying in ${delay}ms... (Attempt ${retries} of ${maxRetries})`);
+        console.log(`⚠️ Database operation error. Retrying in ${delay}ms... (Attempt ${retries} of ${maxRetries})`);
+        console.log(`Error details: ${error.message}`);
+        
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     
     // If we get here, all retries failed
+    console.error(`❌ All ${maxRetries} retry attempts failed. Last error: ${lastError.message}`);
     throw lastError;
   };
   
@@ -235,24 +281,71 @@ if (isProduction) {
   pool.on('error', (err) => {
     console.error('❌ PostgreSQL connection error:', err.message);
   });
-} else {
-  // SQLite for development
-  console.log('🧪 Using SQLite database');
-  const sqlite3 = require('sqlite3').verbose();
-  
-  const dbDir = path.join(__dirname);
-  const dbPath = path.join(dbDir, 'realestate.db');
+} else if (!forcedProductionMode && process.env.NODE_ENV !== 'production') {
+  // SQLite for development ONLY - add double safety check to prevent this in production
+  console.log('\ud83e\uddea Using SQLite database (DEVELOPMENT MODE ONLY)');
+  try {
+    const sqlite3 = require('sqlite3').verbose();
+    
+    const dbDir = path.join(__dirname);
+    const dbPath = path.join(dbDir, 'realestate.db');
 
-  // Ensure database directory exists
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+    // Ensure database directory exists
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+
+    console.log(`SQLite database path: ${dbPath}`);
+    console.log('IMPORTANT: SQLite should NEVER be used in production!');
+
+    // Create SQLite database connection
+    const sqliteDb = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        console.error('Error opening database:', err.message);
+      } else {
+        console.log('✅ Connected to SQLite database');
+      }
+    });
+
+    // Enable foreign keys and WAL mode for better performance
+    sqliteDb.run('PRAGMA foreign_keys = ON');
+    sqliteDb.run('PRAGMA journal_mode = WAL');
+    
+    // Create promise wrappers for SQLite functions
+    db = {
+      run: (query, params = []) => {
+        return new Promise((resolve, reject) => {
+          sqliteDb.run(query, params, function(err) {
+            if (err) return reject(err);
+            resolve({ changes: this.changes, lastID: this.lastID });
+          });
+        });
+      },
+      
+      get: (query, params = []) => {
+        return new Promise((resolve, reject) => {
+          sqliteDb.get(query, params, (err, row) => {
+            if (err) return reject(err);
+            resolve(row);
+          });
+        });
+      },
+      
+      all: (query, params = []) => {
+        return new Promise((resolve, reject) => {
+          sqliteDb.all(query, params, (err, rows) => {
+            if (err) return reject(err);
+            resolve(rows);
+          });
+        });
+      },
+      
+      // Keep reference to original SQLite database for compatibility
+      sqliteDb: sqliteDb
+    };
+  } catch (err) {
+    console.error('Error initializing SQLite:', err.message);
   }
-
-  // Create SQLite database connection
-  const sqliteDb = new sqlite3.Database(dbPath, (err) => {
-    if (err) {
-      console.error('Error opening database:', err.message);
-    } else {
       console.log('✅ Connected to SQLite database');
     }
   });
