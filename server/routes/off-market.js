@@ -46,7 +46,7 @@ router.get('/', async (req, res) => {
     
     try {
       // Use a simpler query first to get just the off-market deals
-      const dealsQuery = `
+      let dealsQuery = `
         SELECT * FROM off_market_deals d
         WHERE d.isActive = true
       `;
