@@ -20,47 +20,56 @@ router.get('/', async (req, res) => {
     } = req.query;
 
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    let whereConditions = ['status = ?'];
+    let whereConditions = ['status = $1'];
     let params = [status];
+    let paramCounter = 2;
 
     if (propertyType) {
-      whereConditions.push('propertyType = ?');
+      whereConditions.push(`propertyType = $${paramCounter}`);
       params.push(propertyType);
+      paramCounter++;
     }
 
     if (city) {
-      whereConditions.push('city = ?');
+      whereConditions.push(`city = $${paramCounter}`);
       params.push(city);
+      paramCounter++;
     }
 
     if (minPrice) {
-      whereConditions.push('price >= ?');
+      whereConditions.push(`price >= $${paramCounter}`);
       params.push(parseFloat(minPrice));
+      paramCounter++;
     }
 
     if (maxPrice) {
-      whereConditions.push('price <= ?');
+      whereConditions.push(`price <= $${paramCounter}`);
       params.push(parseFloat(maxPrice));
+      paramCounter++;
     }
 
     if (bedrooms) {
-      whereConditions.push('bedrooms >= ?');
+      whereConditions.push(`bedrooms >= $${paramCounter}`);
       params.push(parseInt(bedrooms));
+      paramCounter++;
     }
 
     if (bathrooms) {
-      whereConditions.push('bathrooms >= ?');
+      whereConditions.push(`bathrooms >= $${paramCounter}`);
       params.push(parseFloat(bathrooms));
+      paramCounter++;
     }
 
     if (minSquareFeet) {
-      whereConditions.push('squareFeet >= ?');
+      whereConditions.push(`squareFeet >= $${paramCounter}`);
       params.push(parseInt(minSquareFeet));
+      paramCounter++;
     }
 
     if (maxSquareFeet) {
-      whereConditions.push('squareFeet <= ?');
+      whereConditions.push(`squareFeet <= $${paramCounter}`);
       params.push(parseInt(maxSquareFeet));
+      paramCounter++;
     }
 
     const whereClause = whereConditions.join(' AND ');
@@ -77,22 +86,23 @@ router.get('/', async (req, res) => {
     // Get properties with images
     const query = `
       SELECT p.*,
-        (SELECT json_group_array(
-          json_object(
+        (SELECT json_agg(
+          json_build_object(
             'id', pi.id,
             'imageUrl', pi.imageUrl,
             'thumbnailUrl', pi.thumbnailUrl,
             'isPrimary', pi.isPrimary,
             'displayOrder', pi.displayOrder
           )
+          ORDER BY pi.displayOrder
         )
         FROM property_images pi
         WHERE pi.propertyId = p.id
-        ORDER BY pi.displayOrder) as images
+        ) as images
       FROM properties p
       WHERE ${whereClause}
       ORDER BY p.featured DESC, p.createdAt DESC
-      LIMIT ? OFFSET ?
+      LIMIT $${paramCounter} OFFSET $${paramCounter+1}
     `;
 
     params.push(parseInt(limit), offset);
@@ -103,10 +113,10 @@ router.get('/', async (req, res) => {
         return res.status(500).json({ error: 'Failed to fetch properties' });
       }
 
-      // Parse images JSON
+      // Handle images - PostgreSQL returns JSON directly
       const properties = rows.map(row => ({
         ...row,
-        images: row.images ? JSON.parse(row.images) : [],
+        images: row.images || [], // PostgreSQL returns json directly
         price: parseFloat(row.price),
         latitude: row.latitude ? parseFloat(row.latitude) : null,
         longitude: row.longitude ? parseFloat(row.longitude) : null
@@ -134,8 +144,8 @@ router.get('/featured', (req, res) => {
 
   const query = `
     SELECT p.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', pi.id,
           'imageUrl', pi.imageUrl,
           'thumbnailUrl', pi.thumbnailUrl,
@@ -143,11 +153,11 @@ router.get('/featured', (req, res) => {
         )
       )
       FROM property_images pi
-      WHERE pi.propertyId = p.id AND pi.isPrimary = 1) as images
+      WHERE pi.propertyId = p.id AND pi.isPrimary = true) as images
     FROM properties p
-    WHERE p.featured = 1 AND p.status = 'active'
+    WHERE p.featured = true AND p.status = 'active'
     ORDER BY p.createdAt DESC
-    LIMIT ?
+    LIMIT $1
   `;
 
   db.all(query, [limit], (err, rows) => {
@@ -158,7 +168,7 @@ router.get('/featured', (req, res) => {
 
     const properties = rows.map(row => ({
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
+      images: row.images || [], // PostgreSQL returns JSON directly
       price: parseFloat(row.price)
     }));
 
@@ -173,8 +183,8 @@ router.get('/:id', (req, res) => {
   // Get property with images and features
   const query = `
     SELECT p.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', pi.id,
           'imageUrl', pi.imageUrl,
           'thumbnailUrl', pi.thumbnailUrl,
@@ -182,12 +192,12 @@ router.get('/:id', (req, res) => {
           'displayOrder', pi.displayOrder,
           'caption', pi.caption
         )
+        ORDER BY pi.displayOrder
       )
       FROM property_images pi
-      WHERE pi.propertyId = p.id
-      ORDER BY pi.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      WHERE pi.propertyId = p.id) as images,
+      (SELECT json_agg(
+        json_build_object(
           'id', pf.id,
           'feature', pf.feature,
           'category', pf.category
@@ -196,7 +206,7 @@ router.get('/:id', (req, res) => {
       FROM property_features pf
       WHERE pf.propertyId = p.id) as features
     FROM properties p
-    WHERE p.id = ?
+    WHERE p.id = $1
   `;
 
   db.get(query, [propertyId], (err, row) => {
@@ -211,8 +221,8 @@ router.get('/:id', (req, res) => {
 
     const property = {
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      features: row.features ? JSON.parse(row.features) : [],
+      images: row.images || [], // PostgreSQL returns JSON directly
+      features: row.features || [], // PostgreSQL returns JSON directly
       price: parseFloat(row.price),
       latitude: row.latitude ? parseFloat(row.latitude) : null,
       longitude: row.longitude ? parseFloat(row.longitude) : null
@@ -228,23 +238,23 @@ router.get('/mls/:mlsNumber', (req, res) => {
 
   const query = `
     SELECT p.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', pi.id,
           'imageUrl', pi.imageUrl,
           'thumbnailUrl', pi.thumbnailUrl,
           'isPrimary', pi.isPrimary,
           'displayOrder', pi.displayOrder
         )
+        ORDER BY pi.displayOrder
       )
       FROM property_images pi
-      WHERE pi.propertyId = p.id
-      ORDER BY pi.displayOrder) as images,
-      (SELECT json_group_array(pf.feature)
+      WHERE pi.propertyId = p.id) as images,
+      (SELECT json_agg(pf.feature)
       FROM property_features pf
       WHERE pf.propertyId = p.id) as features
     FROM properties p
-    WHERE p.mlsNumber = ?
+    WHERE p.mlsNumber = $1
   `;
 
   db.get(query, [mlsNumber], (err, row) => {
@@ -259,8 +269,8 @@ router.get('/mls/:mlsNumber', (req, res) => {
 
     const property = {
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      features: row.features ? JSON.parse(row.features) : [],
+      images: row.images || [], // PostgreSQL returns JSON directly
+      features: row.features || [], // PostgreSQL returns JSON directly
       price: parseFloat(row.price)
     };
 

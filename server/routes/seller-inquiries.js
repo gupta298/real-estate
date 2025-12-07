@@ -43,7 +43,7 @@ router.post('/', (req, res) => {
 
   if (token) {
     db.get(
-      `SELECT userId FROM user_sessions WHERE token = ? AND expiresAt > datetime('now')`,
+      `SELECT userId FROM user_sessions WHERE token = $1 AND expiresAt > CURRENT_TIMESTAMP`,
       [token],
       (err, session) => {
         if (!err && session) {
@@ -63,24 +63,27 @@ router.post('/', (req, res) => {
         propertyType, bedrooms, bathrooms, squareFeet, lotSize, yearBuilt,
         currentValueEstimate, reasonForSelling, timeline, hasMortgage, mortgageBalance,
         needsRepairs, repairDescription, additionalInfo, userId, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'pending') RETURNING id`,
       [
         firstName, lastName, email, phone, propertyAddress, city, state, zipCode,
         propertyType || null, bedrooms || null, bathrooms || null, squareFeet || null,
         lotSize || null, yearBuilt || null, currentValueEstimate || null,
-        reasonForSelling || null, timeline || null, hasMortgage ? 1 : 0,
-        mortgageBalance || null, needsRepairs ? 1 : 0, repairDescription || null,
+        reasonForSelling || null, timeline || null, hasMortgage ? true : false,
+        mortgageBalance || null, needsRepairs ? true : false, repairDescription || null,
         additionalInfo || null, userId
       ],
-      function(err) {
+      function(err, result) {
         if (err) {
           console.error('Error creating seller inquiry:', err);
           return res.status(500).json({ error: 'Failed to submit inquiry' });
         }
+        
+        // Get inquiry ID from result object for PostgreSQL or use lastID for SQLite
+        const inquiryId = result && result.rows && result.rows[0] ? result.rows[0].id : this.lastID;
 
         res.json({
           success: true,
-          inquiryId: this.lastID,
+          inquiryId,
           message: 'Inquiry submitted successfully. We will reach out to you soon!'
         });
       }
@@ -109,7 +112,7 @@ router.get('/', authenticate, (req, res) => {
   let params = [];
 
   if (status && status !== 'all') {
-    query += ' AND s.status = ?';
+    query += ' AND s.status = $1';
     params.push(status);
   }
 
@@ -121,11 +124,11 @@ router.get('/', authenticate, (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch inquiries' });
     }
 
-    // Convert boolean values
+    // Convert boolean values if needed (PostgreSQL already returns true/false)
     const formattedInquiries = inquiries.map(inquiry => ({
       ...inquiry,
-      hasMortgage: inquiry.hasMortgage === 1,
-      needsRepairs: inquiry.needsRepairs === 1
+      hasMortgage: typeof inquiry.hasMortgage === 'boolean' ? inquiry.hasMortgage : inquiry.hasMortgage === 1,
+      needsRepairs: typeof inquiry.needsRepairs === 'boolean' ? inquiry.needsRepairs : inquiry.needsRepairs === 1
     }));
 
     res.json({ inquiries: formattedInquiries });
@@ -148,7 +151,7 @@ router.get('/:id', authenticate, (req, res) => {
             a.phone as agentPhone
      FROM seller_inquiries s
      LEFT JOIN agents a ON s.assignedAgentId = a.id
-     WHERE s.id = ?`,
+     WHERE s.id = $1`,
     [inquiryId],
     (err, inquiry) => {
       if (err) {
@@ -160,11 +163,11 @@ router.get('/:id', authenticate, (req, res) => {
         return res.status(404).json({ error: 'Inquiry not found' });
       }
 
-      // Convert boolean values
+      // Convert boolean values if needed (PostgreSQL already returns true/false)
       const formattedInquiry = {
         ...inquiry,
-        hasMortgage: inquiry.hasMortgage === 1,
-        needsRepairs: inquiry.needsRepairs === 1
+        hasMortgage: typeof inquiry.hasMortgage === 'boolean' ? inquiry.hasMortgage : inquiry.hasMortgage === 1,
+        needsRepairs: typeof inquiry.needsRepairs === 'boolean' ? inquiry.needsRepairs : inquiry.needsRepairs === 1
       };
 
       res.json({ inquiry: formattedInquiry });
@@ -184,22 +187,27 @@ router.put('/:id', authenticate, (req, res) => {
   const updates = [];
   const params = [];
 
+  let paramCounter = 1;
+
   if (status) {
     if (!['pending', 'in_progress', 'completed'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status. Must be: pending, in_progress, or completed' });
     }
-    updates.push('status = ?');
+    updates.push(`status = $${paramCounter}`);
     params.push(status);
+    paramCounter++;
   }
 
   if (assignedAgentId !== undefined) {
-    updates.push('assignedAgentId = ?');
+    updates.push(`assignedAgentId = $${paramCounter}`);
     params.push(assignedAgentId || null);
+    paramCounter++;
   }
 
   if (adminNotes !== undefined) {
-    updates.push('adminNotes = ?');
+    updates.push(`adminNotes = $${paramCounter}`);
     params.push(adminNotes || null);
+    paramCounter++;
   }
 
   if (updates.length === 0) {
@@ -209,7 +217,7 @@ router.put('/:id', authenticate, (req, res) => {
   updates.push('updatedAt = CURRENT_TIMESTAMP');
   params.push(inquiryId);
 
-  const query = `UPDATE seller_inquiries SET ${updates.join(', ')} WHERE id = ?`;
+  const query = `UPDATE seller_inquiries SET ${updates.join(', ')} WHERE id = $${paramCounter}`;
 
   db.run(query, params, function(err) {
     if (err) {
@@ -230,7 +238,7 @@ router.put('/:id', authenticate, (req, res) => {
               a.phone as agentPhone
        FROM seller_inquiries s
        LEFT JOIN agents a ON s.assignedAgentId = a.id
-       WHERE s.id = ?`,
+       WHERE s.id = $1`,
       [inquiryId],
       (err, inquiry) => {
         if (err) {
@@ -239,8 +247,8 @@ router.put('/:id', authenticate, (req, res) => {
 
         const formattedInquiry = {
           ...inquiry,
-          hasMortgage: inquiry.hasMortgage === 1,
-          needsRepairs: inquiry.needsRepairs === 1
+          hasMortgage: typeof inquiry.hasMortgage === 'boolean' ? inquiry.hasMortgage : inquiry.hasMortgage === 1,
+          needsRepairs: typeof inquiry.needsRepairs === 'boolean' ? inquiry.needsRepairs : inquiry.needsRepairs === 1
         };
 
         res.json({ success: true, inquiry: formattedInquiry });
@@ -257,13 +265,17 @@ router.delete('/:id', authenticate, (req, res) => {
 
   const inquiryId = req.params.id;
 
-  db.run('DELETE FROM seller_inquiries WHERE id = ?', [inquiryId], function(err) {
+  db.run('DELETE FROM seller_inquiries WHERE id = $1', [inquiryId], function(err, result) {
     if (err) {
       console.error('Error deleting seller inquiry:', err);
       return res.status(500).json({ error: 'Failed to delete inquiry' });
     }
 
-    if (this.changes === 0) {
+    // Check if any rows were affected
+    // In PostgreSQL, result.rowCount contains the number of affected rows
+    // In SQLite, this.changes contains the number of affected rows
+    const rowsAffected = result && result.rowCount ? result.rowCount : this.changes;
+    if (rowsAffected === 0) {
       return res.status(404).json({ error: 'Inquiry not found' });
     }
 

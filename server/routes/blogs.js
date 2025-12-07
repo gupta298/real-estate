@@ -40,10 +40,11 @@ router.get('/', (req, res) => {
           'displayOrder', img.displayOrder,
           'caption', img.caption
         )
+        ORDER BY img.displayOrder
       )
       FROM blog_images img
       WHERE img.blogId = b.id
-      ORDER BY img.displayOrder) as images,
+      ) as images,
       (SELECT json_agg(
         json_build_object(
           'id', vid.id,
@@ -52,10 +53,11 @@ router.get('/', (req, res) => {
           'displayOrder', vid.displayOrder,
           'caption', vid.caption
         )
+        ORDER BY vid.displayOrder
       )
       FROM blog_videos vid
       WHERE vid.blogId = b.id
-      ORDER BY vid.displayOrder) as videos
+      ) as videos
     FROM blogs b
     WHERE b.isPublished = true
     ORDER BY b.createdAt DESC
@@ -72,7 +74,7 @@ router.get('/', (req, res) => {
       ...row,
       images: row.images || [], // PostgreSQL returns json directly
       videos: row.videos || [], // PostgreSQL returns json directly
-      // Handle both PostgreSQL boolean and SQLite integer
+      // In PostgreSQL, booleans are already boolean values
       isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     }));
 
@@ -99,10 +101,11 @@ router.get('/latest', (req, res) => {
           'displayOrder', img.displayOrder,
           'caption', img.caption
         )
+        ORDER BY img.displayOrder
       )
       FROM blog_images img
       WHERE img.blogId = b.id
-      ORDER BY img.displayOrder) as images,
+      ) as images,
       (SELECT json_agg(
         json_build_object(
           'id', vid.id,
@@ -111,10 +114,11 @@ router.get('/latest', (req, res) => {
           'displayOrder', vid.displayOrder,
           'caption', vid.caption
         )
+        ORDER BY vid.displayOrder
       )
       FROM blog_videos vid
       WHERE vid.blogId = b.id
-      ORDER BY vid.displayOrder) as videos
+      ) as videos
     FROM blogs b
     WHERE b.isPublished = true
     ORDER BY b.createdAt DESC
@@ -132,7 +136,7 @@ router.get('/latest', (req, res) => {
       ...row,
       images: row.images || [], // PostgreSQL returns json directly
       videos: row.videos || [], // PostgreSQL returns json directly
-      // Handle both PostgreSQL boolean and SQLite integer
+      // In PostgreSQL, booleans are already boolean values
       isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     }));
 
@@ -159,10 +163,11 @@ router.get('/:id', (req, res) => {
           'displayOrder', img.displayOrder,
           'caption', img.caption
         )
+        ORDER BY img.displayOrder
       )
       FROM blog_images img
       WHERE img.blogId = b.id
-      ORDER BY img.displayOrder) as images,
+      ) as images,
       (SELECT json_agg(
         json_build_object(
           'id', vid.id,
@@ -171,10 +176,11 @@ router.get('/:id', (req, res) => {
           'displayOrder', vid.displayOrder,
           'caption', vid.caption
         )
+        ORDER BY vid.displayOrder
       )
       FROM blog_videos vid
       WHERE vid.blogId = b.id
-      ORDER BY vid.displayOrder) as videos
+      ) as videos
     FROM blogs b
     WHERE b.id = $1 AND b.isPublished = true
   `;
@@ -194,7 +200,7 @@ router.get('/:id', (req, res) => {
       ...row,
       images: row.images || [], // PostgreSQL returns json directly
       videos: row.videos || [], // PostgreSQL returns json directly
-      // Handle both PostgreSQL boolean and SQLite integer
+      // In PostgreSQL, booleans are already boolean values
       isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     };
 

@@ -16,10 +16,11 @@ router.get('/', (req, res) => {
           'displayOrder', img.displayOrder,
           'caption', img.caption
         )
+        ORDER BY img.displayOrder
       )
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
-      ORDER BY img.displayOrder) as images,
+      ) as images,
       (SELECT json_agg(
         json_build_object(
           'id', vid.id,
@@ -28,10 +29,11 @@ router.get('/', (req, res) => {
           'displayOrder', vid.displayOrder,
           'caption', vid.caption
         )
+        ORDER BY vid.displayOrder
       )
       FROM off_market_deal_videos vid
       WHERE vid.dealId = d.id
-      ORDER BY vid.displayOrder) as videos
+      ) as videos
     FROM off_market_deals d
     WHERE d.isActive = true
   `;
@@ -70,7 +72,7 @@ router.get('/', (req, res) => {
       videos: row.videos || [], // PostgreSQL returns json directly
       thumbnailUrl: row.thumbnailUrl || null,
       thumbnailType: row.thumbnailType || null,
-      // Handle both PostgreSQL boolean and SQLite integer
+      // In PostgreSQL, booleans are already boolean values
       isHotDeal: typeof row.isHotDeal === 'boolean' ? row.isHotDeal : row.isHotDeal === 1
     }));
 
@@ -92,10 +94,11 @@ router.get('/:id', (req, res) => {
           'displayOrder', img.displayOrder,
           'caption', img.caption
         )
+        ORDER BY img.displayOrder
       )
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
-      ORDER BY img.displayOrder) as images,
+      ) as images,
       (SELECT json_agg(
         json_build_object(
           'id', vid.id,
@@ -104,10 +107,11 @@ router.get('/:id', (req, res) => {
           'displayOrder', vid.displayOrder,
           'caption', vid.caption
         )
+        ORDER BY vid.displayOrder
       )
       FROM off_market_deal_videos vid
       WHERE vid.dealId = d.id
-      ORDER BY vid.displayOrder) as videos
+      ) as videos
     FROM off_market_deals d
     WHERE d.id = $1 AND d.isActive = true
   `;
@@ -128,7 +132,7 @@ router.get('/:id', (req, res) => {
       videos: row.videos || [], // PostgreSQL returns json directly
       thumbnailUrl: row.thumbnailUrl || null,
       thumbnailType: row.thumbnailType || null,
-      // Handle both PostgreSQL boolean and SQLite integer
+      // In PostgreSQL, booleans are already boolean values
       isHotDeal: typeof row.isHotDeal === 'boolean' ? row.isHotDeal : row.isHotDeal === 1
     };
 

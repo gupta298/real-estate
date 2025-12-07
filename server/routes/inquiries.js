@@ -51,8 +51,13 @@ router.post('/', (req, res) => {
           return res.status(500).json({ error: 'Failed to submit inquiry' });
         }
 
-        // Get inquiryId from result for PostgreSQL or use lastID for SQLite
-        const inquiryId = result && result.rows && result.rows[0] ? result.rows[0].id : this.lastID;
+        // Get inquiryId from result.rows for PostgreSQL
+        const inquiryId = result && result.rows && result.rows[0] ? result.rows[0].id : null;
+        
+        if (!inquiryId) {
+          console.error('Failed to get inquiry ID after insert');
+          return res.status(500).json({ error: 'Failed to submit inquiry properly' });
+        }
 
         res.json({
           success: true,

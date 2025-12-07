@@ -27,92 +27,109 @@ router.post('/', (req, res) => {
       sortOrder = 'DESC'
     } = req.body;
 
-    let whereConditions = ['status = ?'];
+    let whereConditions = ['status = $1'];
     let params = ['active'];
+    let paramCounter = 2;
 
     // Text search
     if (query) {
       whereConditions.push(`(
-        title LIKE ? OR
-        description LIKE ? OR
-        address LIKE ? OR
-        city LIKE ?
+        title LIKE $${paramCounter} OR
+        description LIKE $${paramCounter+1} OR
+        address LIKE $${paramCounter+2} OR
+        city LIKE $${paramCounter+3}
       )`);
       const searchTerm = `%${query}%`;
       params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      paramCounter += 4;
     }
 
     // Location filters
     if (city) {
-      whereConditions.push('city = ?');
+      whereConditions.push(`city = $${paramCounter}`);
       params.push(city);
+      paramCounter++;
     }
 
     if (state) {
-      whereConditions.push('state = ?');
+      whereConditions.push(`state = $${paramCounter}`);
       params.push(state);
+      paramCounter++;
     }
 
     if (zipCode) {
-      whereConditions.push('zipCode = ?');
+      whereConditions.push(`zipCode = $${paramCounter}`);
       params.push(zipCode);
+      paramCounter++;
     }
 
     // Price range
     if (minPrice) {
-      whereConditions.push('price >= ?');
+      whereConditions.push(`price >= $${paramCounter}`);
       params.push(parseFloat(minPrice));
+      paramCounter++;
     }
 
     if (maxPrice) {
-      whereConditions.push('price <= ?');
+      whereConditions.push(`price <= $${paramCounter}`);
       params.push(parseFloat(maxPrice));
+      paramCounter++;
     }
 
     // Property details
     if (bedrooms) {
-      whereConditions.push('bedrooms >= ?');
+      whereConditions.push(`bedrooms >= $${paramCounter}`);
       params.push(parseInt(bedrooms));
+      paramCounter++;
     }
 
     if (bathrooms) {
-      whereConditions.push('bathrooms >= ?');
+      whereConditions.push(`bathrooms >= $${paramCounter}`);
       params.push(parseFloat(bathrooms));
+      paramCounter++;
     }
 
     if (propertyType) {
       if (Array.isArray(propertyType)) {
-        whereConditions.push(`propertyType IN (${propertyType.map(() => '?').join(',')})`);
+        const placeholders = propertyType.map((_, i) => `$${paramCounter + i}`).join(',');
+        whereConditions.push(`propertyType IN (${placeholders})`);
         params.push(...propertyType);
+        paramCounter += propertyType.length;
       } else {
-        whereConditions.push('propertyType = ?');
+        whereConditions.push(`propertyType = $${paramCounter}`);
         params.push(propertyType);
+        paramCounter++;
       }
     }
 
     if (minSquareFeet) {
-      whereConditions.push('squareFeet >= ?');
+      whereConditions.push(`squareFeet >= $${paramCounter}`);
       params.push(parseInt(minSquareFeet));
+      paramCounter++;
     }
 
     if (maxSquareFeet) {
-      whereConditions.push('squareFeet <= ?');
+      whereConditions.push(`squareFeet <= $${paramCounter}`);
       params.push(parseInt(maxSquareFeet));
+      paramCounter++;
     }
 
     if (minLotSize) {
-      whereConditions.push('lotSize >= ?');
+      whereConditions.push(`lotSize >= $${paramCounter}`);
       params.push(parseFloat(minLotSize));
+      paramCounter++;
     }
 
     if (maxLotSize) {
-      whereConditions.push('lotSize <= ?');
+      whereConditions.push(`lotSize <= $${paramCounter}`);
       params.push(parseFloat(maxLotSize));
+      paramCounter++;
     }
 
     if (yearBuilt) {
-      whereConditions.push('yearBuilt >= ?');
+      whereConditions.push(`yearBuilt >= $${paramCounter}`);
       params.push(parseInt(yearBuilt));
+      paramCounter++;
     }
 
     const whereClause = whereConditions.join(' AND ');
@@ -137,8 +154,8 @@ router.post('/', (req, res) => {
       // Get properties with images
       const query = `
         SELECT p.*,
-          (SELECT json_group_array(
-            json_object(
+          (SELECT json_agg(
+            json_build_object(
               'id', pi.id,
               'imageUrl', pi.imageUrl,
               'thumbnailUrl', pi.thumbnailUrl,
@@ -146,11 +163,11 @@ router.post('/', (req, res) => {
             )
           )
           FROM property_images pi
-          WHERE pi.propertyId = p.id AND pi.isPrimary = 1) as images
+          WHERE pi.propertyId = p.id AND pi.isPrimary = true) as images
         FROM properties p
         WHERE ${whereClause}
         ORDER BY p.${sortColumn} ${order}
-        LIMIT ? OFFSET ?
+        LIMIT $${paramCounter} OFFSET $${paramCounter+1}
       `;
 
       const queryParams = [...params, parseInt(limit), offset];
@@ -164,23 +181,25 @@ router.post('/', (req, res) => {
         // Filter by features if specified
         let properties = rows.map(row => ({
           ...row,
-          images: row.images ? JSON.parse(row.images) : [],
+          images: row.images || [], // PostgreSQL returns JSON directly
           price: parseFloat(row.price)
         }));
 
         // If features filter is specified, get properties with those features
         if (features && Array.isArray(features) && features.length > 0) {
           const propertyIds = properties.map(p => p.id);
-          const placeholders = propertyIds.map(() => '?').join(',');
-          const featurePlaceholders = features.map(() => '?').join(',');
+          // Generate PostgreSQL parameter placeholders ($1, $2, etc.)
+          let featureParamCounter = 1;
+          const propPlaceholders = propertyIds.map(() => `$${featureParamCounter++}`).join(',');
+          const featurePlaceholders = features.map(() => `$${featureParamCounter++}`).join(',');
 
           const featureQuery = `
             SELECT DISTINCT propertyId
             FROM property_features
-            WHERE propertyId IN (${placeholders})
+            WHERE propertyId IN (${propPlaceholders})
             AND feature IN (${featurePlaceholders})
             GROUP BY propertyId
-            HAVING COUNT(DISTINCT feature) = ?
+            HAVING COUNT(DISTINCT feature) = $${featureParamCounter}
           `;
 
           db.all(featureQuery, [...propertyIds, ...features, features.length], (err, featureRows) => {
@@ -229,7 +248,7 @@ router.get('/suggestions', (req, res) => {
     db.all(
       `SELECT DISTINCT city, state, COUNT(*) as count
        FROM properties
-       WHERE status = 'active' AND city LIKE ?
+       WHERE status = 'active' AND city LIKE $1
        GROUP BY city, state
        ORDER BY count DESC
        LIMIT 10`,

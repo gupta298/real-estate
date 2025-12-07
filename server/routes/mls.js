@@ -32,7 +32,7 @@ router.get('/sync/status', (req, res) => {
   db.all(
     `SELECT * FROM mls_sync_log
      ORDER BY startedAt DESC
-     LIMIT ?`,
+     LIMIT $1`,
     [limit],
     (err, rows) => {
       if (err) {
