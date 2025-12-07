@@ -10,39 +10,64 @@ import { API_URL } from '@/utils/apiConfig';
  */
 const getImageUrl = (url) => {
   try {
+    // Log URL for debugging
+    console.log('[Image] Processing URL:', url);
+    
     // Handle null/undefined URLs
-    if (!url) return '/placeholder-property.jpg';
+    if (!url) {
+      console.log('[Image] Empty URL, using placeholder');
+      return '/placeholder-property.jpg';
+    }
     
     // Handle empty strings
-    if (url.trim() === '') return '/placeholder-property.jpg';
+    if (url.trim() === '') {
+      console.log('[Image] Empty string URL, using placeholder');
+      return '/placeholder-property.jpg';
+    }
     
     // If it's already an absolute URL (starts with http:// or https://)
     if (url.match(/^https?:\/\//)) {
+      console.log('[Image] URL is already absolute:', url);
       return url;
     }
     
-    // If it's a relative URL, append it to the API URL
+    // If it's a relative URL, append it to the correct base URL
     if (url.startsWith('/')) {
-      // For static exports, use the current origin
-      const baseUrl = typeof window !== 'undefined' ? 
-        // For browser: use window.location.origin
-        window.location.origin : 
-        // For SSR: use API_URL with /api removed
-        API_URL.replace(/\/api$/, '');
-      
-      return `${baseUrl}${url}`;
+      // For subdomains, use special handling
+      if (typeof window !== 'undefined' && window.location.hostname.includes('.blueflagindy.com')) {
+        const subdomain = window.location.hostname.split('.')[0];
+        console.log(`[Image] Detected ${subdomain} subdomain, using subdomain-specific URL`);
+        // Use the subdomain URL directly
+        const baseUrl = window.location.origin;
+        const fullUrl = `${baseUrl}${url}`;
+        console.log('[Image] Constructed URL:', fullUrl);
+        return fullUrl;
+      } else {
+        // For static exports or other environments, use the current origin or API URL
+        const baseUrl = typeof window !== 'undefined' ? 
+          // For browser: use window.location.origin
+          window.location.origin : 
+          // For SSR: use API_URL with /api removed
+          API_URL.replace(/\/api$/, '');
+        
+        const fullUrl = `${baseUrl}${url}`;
+        console.log('[Image] Constructed standard URL:', fullUrl);
+        return fullUrl;
+      }
     }
     
     // Check if URL might be a partial path missing the leading slash
     if (!url.startsWith('/') && !url.match(/^https?:\/\//)) {
+      console.log('[Image] Adding leading slash to URL');
       // Add leading slash and try again
       return getImageUrl(`/${url}`);
     }
     
     // Default fallback
+    console.log('[Image] Using URL as-is:', url);
     return url;
   } catch (err) {
-    console.error('Error processing image URL:', err);
+    console.error('[Image] Error processing URL:', err);
     return '/placeholder-property.jpg';
   }
 };

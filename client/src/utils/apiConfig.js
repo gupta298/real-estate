@@ -17,6 +17,9 @@ const getApiUrl = () => {
     if (hostname.includes('.blueflagindy.com')) {
       console.log(`🌐 Using current subdomain for API: ${hostname}`);
       // Use the current subdomain for API calls
+      // Important: We need to ensure the API paths are constructed correctly
+      const subdomain = hostname.split('.')[0];
+      console.log(`🌐 Detected subdomain: ${subdomain}`);
       return `${protocol}//${hostname}`;
     }
     

@@ -13,7 +13,13 @@ const api = axios.create({
 
 // Log API configuration with more details
 const hostname = typeof window !== 'undefined' ? window.location.hostname : 'SSR';
+const isSubdomainMode = hostname.includes('.blueflagindy.com');
+const subdomain = isSubdomainMode ? hostname.split('.')[0] : 'none';
+
 console.log(`API configured with baseURL: ${API_URL} (from ${hostname})`);
+if (isSubdomainMode) {
+  console.log(`[API Config] Running in subdomain mode: ${subdomain}`);
+}
 
 // Allow inspecting the API config in browser console
 if (typeof window !== 'undefined') {
@@ -53,9 +59,81 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Helper function to check image URLs in responses
+const checkAndLogImageUrls = (response) => {
+  try {
+    // Only log in development or when explicitly enabled
+    if (process.env.NODE_ENV !== 'production' || window.DEBUG_IMAGE_URLS) {
+      const data = response.data;
+      
+      // Check for different response formats
+      if (data) {
+        // Check for common image paths in response
+        const urlPaths = [];
+        
+        // Check for deal images
+        if (data.deal && data.deal.images && data.deal.images.length > 0) {
+          urlPaths.push(...data.deal.images.map(img => img.url || img.imageUrl || img.thumbnailUrl));
+        }
+        
+        // Check for deals list
+        if (data.deals && data.deals.length > 0) {
+          data.deals.forEach(deal => {
+            if (deal.thumbnailUrl) urlPaths.push(deal.thumbnailUrl);
+            if (deal.images && deal.images.length > 0) {
+              urlPaths.push(...deal.images.map(img => img.url || img.imageUrl || img.thumbnailUrl));
+            }
+          });
+        }
+        
+        // Check for blogs
+        if (data.blogs && data.blogs.length > 0) {
+          data.blogs.forEach(blog => {
+            if (blog.thumbnailUrl) urlPaths.push(blog.thumbnailUrl);
+            if (blog.images && blog.images.length > 0) {
+              urlPaths.push(...blog.images.map(img => img.url || img.imageUrl || img.thumbnailUrl));
+            }
+          });
+        }
+        
+        // Log found URLs
+        if (urlPaths.length > 0) {
+          console.log('[API] Found image URLs in response:', urlPaths.filter(Boolean).slice(0, 3));
+          
+          // For subdomains, verify URL construction
+          if (isSubdomainMode) {
+            console.log('[API] URL construction for subdomain mode:');
+            urlPaths.filter(Boolean).slice(0, 3).forEach(url => {
+              if (url && typeof url === 'string') {
+                // Check if URL is already absolute
+                if (url.match(/^https?:\/\//)) {
+                  console.log(`- Already absolute: ${url}`);
+                } else {
+                  // Construct absolute URL
+                  const baseUrl = window.location.origin;
+                  const fullUrl = url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`;
+                  console.log(`- Relative: ${url} → Absolute: ${fullUrl}`);
+                }
+              }
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    // Don't fail on logging errors
+    console.warn('[API] Error checking image URLs:', err);
+  }
+  
+  return response;
+};
+
 // Add response interceptor for automatic retrying of 404 errors with path adjustments
 api.interceptors.response.use(
-  response => response,
+  response => {
+    // Check for image URLs in successful responses
+    return checkAndLogImageUrls(response);
+  },
   async error => {
     // Enhanced error logging
     const errorName = error.name || 'Unknown';
