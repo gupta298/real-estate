@@ -3,6 +3,34 @@ import { getBlogs } from '@/utils/api';
 import { isSubdomain } from '@/utils/subdomainRouting';
 import { FiX } from 'react-icons/fi';
 import Image from 'next/image';
+import { API_URL } from '@/utils/apiConfig';
+
+/**
+ * Helper function to ensure image URLs are absolute
+ */
+const getImageUrl = (url) => {
+  if (!url) return '/placeholder-property.jpg';
+  
+  // If it's already an absolute URL (starts with http:// or https://)
+  if (url.match(/^https?:\/\//)) {
+    return url;
+  }
+  
+  // If it's a relative URL, append it to the API URL
+  if (url.startsWith('/')) {
+    // Remove /api from API_URL if present since image URLs are typically served from root
+    const baseUrl = API_URL.replace(/\/api$/, '');
+    return `${baseUrl}${url}`;
+  }
+  
+  // Default fallback
+  return url;
+};
+
+/**
+ * Helper function to ensure video URLs are absolute (same logic as images)
+ */
+const getVideoUrl = getImageUrl;
 
 /**
  * Simple blog listing page with proper styling but minimal React dependencies
@@ -575,11 +603,12 @@ export default function BlogsSimplePage() {
                                         </svg>
                                       </div>
                                       <video 
-                                        src={videoUrl}
+                                        src={getVideoUrl(videoUrl)}
                                         className="w-full h-full object-contain"
-                                        style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
+                                        style={{ maxWidth: '100%', maxHeight: '100%' }}
                                         muted
                                         playsInline
+                                        autoPlay
                                         preload="auto"
                                         onClick={isBrowser ? (e => {
                                           if (e && typeof e.stopPropagation === 'function') {
@@ -594,7 +623,7 @@ export default function BlogsSimplePage() {
                                     <div className="w-full h-full flex items-center justify-center bg-gray-100 relative">
                                       <div className="absolute inset-0">
                                         <Image 
-                                          src={imageUrl || '/placeholder-property.jpg'} 
+                                          src={getImageUrl(imageUrl)} 
                                           alt={caption || blogTitle || `Blog Image`} 
                                           fill
                                           className="object-contain cursor-pointer"  
@@ -782,9 +811,9 @@ export default function BlogsSimplePage() {
                 {mediaType === 'video' ? (
                   <video
                     key={videoUrl} /* Key helps React re-render when source changes */
-                    src={videoUrl}
+                    src={getVideoUrl(videoUrl)}
                     controls
-                    className="object-contain"
+                    className="object-contain cursor-pointer"
                     style={{ 
                       width: 'auto',
                       height: 'auto',
@@ -801,7 +830,7 @@ export default function BlogsSimplePage() {
                   <div className="relative w-full h-full flex items-center justify-center">
                     <Image
                       key={imageUrl} /* Key helps React re-render when source changes */
-                      src={imageUrl || '/placeholder-property.jpg'}
+                      src={getImageUrl(imageUrl)}
                       alt={caption || blogTitle || 'Expanded image'}
                       fill
                       className="object-contain cursor-pointer"

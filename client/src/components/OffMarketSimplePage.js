@@ -4,6 +4,34 @@ import { isSubdomain } from '@/utils/subdomainRouting';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FiMapPin, FiHome, FiBriefcase, FiChevronDown, FiX } from 'react-icons/fi';
+import { API_URL } from '@/utils/apiConfig';
+
+/**
+ * Helper function to ensure image URLs are absolute
+ */
+const getImageUrl = (url) => {
+  if (!url) return '/placeholder-property.jpg';
+  
+  // If it's already an absolute URL (starts with http:// or https://)
+  if (url.match(/^https?:\/\//)) {
+    return url;
+  }
+  
+  // If it's a relative URL, append it to the API URL
+  if (url.startsWith('/')) {
+    // Remove /api from API_URL if present since image URLs are typically served from root
+    const baseUrl = API_URL.replace(/\/api$/, '');
+    return `${baseUrl}${url}`;
+  }
+  
+  // Default fallback
+  return url;
+};
+
+/**
+ * Helper function to ensure video URLs are absolute (same logic as images)
+ */
+const getVideoUrl = getImageUrl;
 
 /**
  * Simple off-market listing page with proper styling but minimal React dependencies
@@ -740,7 +768,7 @@ export default function OffMarketSimplePage() {
                                   {item.type === 'video' ? (
                                     <div className="w-full h-full flex items-center justify-center bg-black">
                                       <video
-                                        src={item.videoUrl}
+                                        src={getVideoUrl(item.videoUrl)}
                                         className="w-full h-full object-contain"
                                         style={{ maxWidth: '100%', maxHeight: '100%' }}
                                         muted
@@ -755,7 +783,7 @@ export default function OffMarketSimplePage() {
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center bg-gray-100 relative">
                                       <Image
-                                        src={item.imageUrl || item.thumbnailUrl || '/placeholder-property.jpg'}
+                                        src={getImageUrl(item.imageUrl || item.thumbnailUrl)}
                                         alt={item.caption || deal.title || `Image ${index + 1}`}
                                         fill
                                         className="object-cover"

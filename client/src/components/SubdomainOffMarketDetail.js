@@ -4,6 +4,34 @@ import { getOffMarketDealById } from '@/utils/api';
 import SubdomainMeta from './SubdomainMeta';
 import { isSubdomain } from '@/utils/subdomainRouting';
 import Image from 'next/image';
+import { API_URL } from '@/utils/apiConfig';
+
+/**
+ * Helper function to ensure image URLs are absolute
+ */
+const getImageUrl = (url) => {
+  if (!url) return '/placeholder-property.jpg';
+  
+  // If it's already an absolute URL (starts with http:// or https://)
+  if (url.match(/^https?:\/\//)) {
+    return url;
+  }
+  
+  // If it's a relative URL, append it to the API URL
+  if (url.startsWith('/')) {
+    // Remove /api from API_URL if present since image URLs are typically served from root
+    const baseUrl = API_URL.replace(/\/api$/, '');
+    return `${baseUrl}${url}`;
+  }
+  
+  // Default fallback
+  return url;
+};
+
+/**
+ * Helper function to ensure video URLs are absolute (same logic as images)
+ */
+const getVideoUrl = getImageUrl;
 
 /**
  * Simplified Off-Market Deal Detail component for iframe embedding
@@ -365,7 +393,7 @@ export default function SubdomainOffMarketDetail({ id }) {
                 {/* Main Content - Image or Video */}
                 {mediaItems[currentSlideIndex].type === 'video' ? (
                   <video 
-                    src={mediaItems[currentSlideIndex].url}
+                    src={getVideoUrl(mediaItems[currentSlideIndex].url)}
                     className="max-w-full max-h-full object-contain"
                     style={{ width: 'auto', height: 'auto', maxHeight: '100%' }}
                     controls
@@ -379,7 +407,7 @@ export default function SubdomainOffMarketDetail({ id }) {
                   <>
                     <div className="relative w-full h-full">
                       <Image 
-                        src={mediaItems[currentSlideIndex].url || '/placeholder-property.jpg'}
+                        src={getImageUrl(mediaItems[currentSlideIndex].url)}
                         alt={`Image ${currentSlideIndex + 1} for ${deal.title}`}
                         fill
                         className="object-contain"
@@ -456,7 +484,7 @@ export default function SubdomainOffMarketDetail({ id }) {
                         {/* Video Thumbnail */}
                         <div className="relative w-full h-full">
                           <Image 
-                            src={item.thumbnailUrl || '/placeholder-property.jpg'}
+                            src={getImageUrl(item.thumbnailUrl)}
                             alt={`Video thumbnail ${index + 1}`}
                             fill
                             className="object-cover"
@@ -472,7 +500,7 @@ export default function SubdomainOffMarketDetail({ id }) {
                     ) : (
                       <div className="relative w-full h-full">
                         <Image 
-                          src={item.url || '/placeholder-property.jpg'}
+                          src={getImageUrl(item.url)}
                           alt={`Thumbnail ${index + 1}`}
                           fill
                           className="object-cover"
@@ -573,7 +601,7 @@ export default function SubdomainOffMarketDetail({ id }) {
               {mediaItems[currentSlideIndex].type === 'video' ? (
                 <div className="w-full h-full flex items-center justify-center">
                   <video
-                    src={mediaItems[currentSlideIndex].url}
+                    src={getVideoUrl(mediaItems[currentSlideIndex].url)}
                     className="object-contain"
                     style={{ 
                       width: 'auto',
@@ -592,7 +620,7 @@ export default function SubdomainOffMarketDetail({ id }) {
               ) : (
                 <div className="relative h-full w-full">
                   <Image
-                    src={mediaItems[currentSlideIndex].url || '/placeholder-property.jpg'}
+                    src={getImageUrl(mediaItems[currentSlideIndex].url)}
                     alt={`${deal.title} - Image ${currentSlideIndex + 1}`}
                     fill
                     className="object-contain cursor-pointer"
@@ -646,7 +674,7 @@ export default function SubdomainOffMarketDetail({ id }) {
                         {/* Video Preview Thumbnail */}
                         <div className="relative w-full h-full">
                           <Image 
-                            src={item.thumbnailUrl || '/placeholder-property.jpg'}
+                            src={getImageUrl(item.thumbnailUrl)}
                             alt={`Video thumbnail ${index + 1}`}
                             fill
                             className="object-cover"
@@ -663,7 +691,7 @@ export default function SubdomainOffMarketDetail({ id }) {
                     ) : (
                       <div className="relative w-full h-full">
                         <Image
-                          src={item.url || '/placeholder-property.jpg'}
+                          src={getImageUrl(item.url)}
                           alt={`Thumbnail ${index + 1}`}
                           fill
                           className="object-cover"
