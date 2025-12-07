@@ -410,7 +410,9 @@ export default function OffMarketSimplePage() {
     if (!Array.isArray(state.allDeals)) return [];
     const types = new Set();
     state.allDeals.forEach(deal => {
-      if (deal && deal.propertyType) types.add(deal.propertyType);
+      // Handle case sensitivity in API responses (propertytype vs propertyType)
+      const propertyType = deal?.propertytype || deal?.propertyType;
+      if (propertyType) types.add(propertyType);
     });
     return Array.from(types).sort();
   }, [state.allDeals]);
@@ -420,11 +422,15 @@ export default function OffMarketSimplePage() {
     if (!Array.isArray(state.allDeals)) return [];
     const subTypes = new Set();
     state.allDeals.forEach(deal => {
-      if (deal && deal.propertySubType) {
+      // Handle case sensitivity in API responses (propertysubtype vs propertySubType)
+      const propertySubType = deal?.propertysubtype || deal?.propertySubType;
+      const propertyType = deal?.propertytype || deal?.propertyType;
+      
+      if (propertySubType) {
         // If property types are selected, only show sub-types for those types
         if (state.selectedPropertyTypes.length === 0 || 
-            state.selectedPropertyTypes.includes(deal.propertyType)) {
-          subTypes.add(deal.propertySubType);
+            state.selectedPropertyTypes.includes(propertyType)) {
+          subTypes.add(propertySubType);
         }
       }
     });
@@ -436,7 +442,9 @@ export default function OffMarketSimplePage() {
     if (!Array.isArray(state.allDeals)) return [];
     const statuses = new Set();
     state.allDeals.forEach(deal => {
-      if (deal && deal.status) statuses.add(deal.status);
+      // Handle case sensitivity in API responses (status vs Status)
+      const status = deal?.status || deal?.Status;
+      if (status) statuses.add(status);
     });
     return Array.from(statuses).sort();
   }, [state.allDeals]);
@@ -516,20 +524,23 @@ export default function OffMarketSimplePage() {
       if (!deal) return false;
       
       // Property type filter
+      const propertyType = deal?.propertytype || deal?.propertyType;
       if (selectedPropertyTypes.length > 0 && 
-          !selectedPropertyTypes.includes(deal.propertyType)) {
+          !selectedPropertyTypes.includes(propertyType)) {
         return false;
       }
       
       // Sub-type filter
+      const propertySubType = deal?.propertysubtype || deal?.propertySubType;
       if (selectedPropertySubTypes.length > 0 && 
-          !selectedPropertySubTypes.includes(deal.propertySubType)) {
+          !selectedPropertySubTypes.includes(propertySubType)) {
         return false;
       }
       
       // Status filter
+      const status = deal?.status || deal?.Status;
       if (selectedStatuses.length > 0 && 
-          !selectedStatuses.includes(deal.status)) {
+          !selectedStatuses.includes(status)) {
         return false;
       }
       
@@ -891,37 +902,32 @@ export default function OffMarketSimplePage() {
                     {/* Content */}
                     <div className="p-6">
                       {/* Property Type Badge */}
-                      {deal.propertyType && (
+                      {(deal.propertytype || deal.propertyType) && (
                         <div className="flex items-center gap-2 mb-3">
-                          {getPropertyTypeIcon(deal.propertyType)}
+                          {getPropertyTypeIcon(deal.propertytype || deal.propertyType)}
                           <span className="text-sm font-semibold text-bf-blue">
-                            {deal.propertyType === 'home' ? 'Home' : 'Business'}
+                            {(deal.propertytype || deal.propertyType) === 'home' ? 'Home' : 'Business'}
                           </span>
-                          {deal.propertySubType && (
+                          {(deal.propertysubtype || deal.propertySubType) && (
                             <span className="text-sm text-gray-500">
-                              • {formatPropertySubType(deal.propertySubType)}
+                              • {formatPropertySubType(deal.propertysubtype || deal.propertySubType)}
                             </span>
                           )}
                         </div>
                       )}
 
-                      {/* Title */}
-                      <h2 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
-                        {deal.title}
-                      </h2>
+                    {/* Title */}
+                    <h2 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
+                      {deal.title}
+                    </h2>
 
-                      {/* Area */}
-                      {deal.area && (
-                        <div className="flex items-center gap-2 text-gray-600 mb-4">
-                          <FiMapPin className="w-4 h-4" />
-                          <span className="text-sm">{deal.area}</span>
-                        </div>
-                      )}
-
-                      {/* Preview Content */}
-                      <p className="text-gray-700 text-sm line-clamp-3 mb-4">
-                        {deal.content ? deal.content.replace(/\n/g, ' ').substring(0, 150) + '...' : 'No description available.'}
+                    {/* Location */}
+                    {(deal.area || deal.Area) && (
+                      <p className="flex items-center text-gray-600 mb-3">
+                        <FiMapPin className="mr-1" />
+                        <span>{deal.area || deal.Area}</span>
                       </p>
+                    )}
 
                       {/* View Details Link */}
                       <div className="text-bf-blue font-semibold text-sm hover:underline">
