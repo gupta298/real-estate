@@ -4,12 +4,6 @@ import { getOffMarketDealById } from '@/utils/api';
 import SubdomainMeta from './SubdomainMeta';
 import { isSubdomain } from '@/utils/subdomainRouting';
 import Image from 'next/image';
-import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination, Navigation, Autoplay } from 'swiper/modules';
-import 'swiper/css';
-import 'swiper/css/pagination';
-import 'swiper/css/navigation';
-import 'swiper/css/autoplay';
 
 /**
  * Simplified Off-Market Deal Detail component for iframe embedding
@@ -24,7 +18,6 @@ export default function SubdomainOffMarketDetail({ id }) {
   const [isInIframe, setIsInIframe] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const swiperRef = useRef(null);
 
   useEffect(() => {
     // Detect if we're in an iframe
@@ -161,7 +154,7 @@ export default function SubdomainOffMarketDetail({ id }) {
     return () => document.removeEventListener('keydown', handleTabKey);
   }, [lightboxOpen]);
 
-  // Enhanced keyboard navigation for both lightbox and main carousel
+  // Enhanced keyboard navigation for both lightbox and main gallery
   useEffect(() => {
     // Skip if not in browser or no media items
     if (typeof window === 'undefined' || !mediaItems || mediaItems.length === 0) return;
@@ -191,17 +184,17 @@ export default function SubdomainOffMarketDetail({ id }) {
           }
         }
       } else {
-        // Regular view - navigate the main carousel
-        if (swiperRef.current) {
+        // Regular view - navigate the main gallery
+        if (mediaItems.length > 1) {
           if (e.key === 'ArrowLeft') {
-            swiperRef.current.slidePrev();
+            setCurrentSlideIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
             e.preventDefault(); // Prevent page scrolling
           } else if (e.key === 'ArrowRight') {
-            swiperRef.current.slideNext();
+            setCurrentSlideIndex((prev) => (prev + 1) % mediaItems.length);
             e.preventDefault(); // Prevent page scrolling
           } else if (e.key === 'Enter' || e.key === ' ') {
-            // Enter or Space opens the lightbox with current slide
-            openLightbox(swiperRef.current.realIndex);
+            // Enter or Space opens the lightbox with current image
+            openLightbox(currentSlideIndex);
             e.preventDefault();
           } else if (e.key === 'Escape') {
             // Escape can be used to go back to listing
@@ -216,18 +209,9 @@ export default function SubdomainOffMarketDetail({ id }) {
     
     // Cleanup on unmount
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [lightboxOpen, mediaItems]);
+  }, [lightboxOpen, mediaItems, currentSlideIndex]);
   
-  // Sync swiper and current slide index
-  useEffect(() => {
-    if (swiperRef.current && typeof currentSlideIndex === 'number') {
-      // If the swiper is initialized and we have a valid index
-      if (currentSlideIndex !== swiperRef.current.realIndex) {
-        // Only update if needed to avoid loops
-        swiperRef.current.slideToLoop(currentSlideIndex, 300);
-      }
-    }
-  }, [currentSlideIndex]);
+  // No need for Swiper sync effect anymore since we're using a custom gallery
   
   // Pause videos when closing lightbox
   useEffect(() => {
@@ -364,91 +348,131 @@ export default function SubdomainOffMarketDetail({ id }) {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <span>Click on image/video to view in fullscreen gallery</span>
+                <span>Click on any image to view in fullscreen gallery</span>
               </div>
               <div className="flex items-center gap-2 text-xs mt-1">
                 <span>Keyboard: Use ← → arrows to navigate, Enter/Space to open, Esc to close</span>
               </div>
             </div>
             
-            <Swiper
-              spaceBetween={10}
-              slidesPerView={1}
-              initialSlide={0}
-              pagination={{
-                clickable: true,
-                dynamicBullets: true,
-              }}
-              navigation={true}
-              loop={true}
-              loopFillGroupWithBlank={true}
-              loopAdditionalSlides={2}
-              autoplay={{
-                delay: 5000,
-                disableOnInteraction: false,
-                pauseOnMouseEnter: true,
-              }}
-              onSwiper={(swiper) => {
-                swiperRef.current = swiper;
-                // Ensure we start at index 0
-                swiper.slideToLoop(0, 0, false);
-              }}
-              onSlideChange={(swiper) => {
-                setCurrentSlideIndex(swiper.realIndex);
-              }}
-              modules={[Pagination, Navigation, Autoplay]}
-              className="rounded-lg overflow-hidden"
-              style={{ height: '400px' }}
-            >
-              {mediaItems.map((item, index) => (
-                <SwiperSlide key={`${item.type}-${index}`}>
+            {/* Main Large Image */}
+            <div className="relative rounded-lg overflow-hidden bg-gray-100 mb-2" style={{ height: '400px', maxWidth: '100%' }}>
+              <div 
+                className="w-full h-full flex items-center justify-center relative group cursor-pointer"
+                style={{ maxHeight: '100%' }}
+                onClick={() => openLightbox(currentSlideIndex)}
+              >
+                {/* Main Content - Image or Video */}
+                {mediaItems[currentSlideIndex].type === 'video' ? (
+                  <video 
+                    src={mediaItems[currentSlideIndex].url}
+                    className="max-w-full max-h-full object-contain"
+                    style={{ width: 'auto', height: 'auto', maxHeight: '100%' }}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    onClick={(e) => e.stopPropagation()} // Prevent opening lightbox when clicking on video controls
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <>
+                    <img 
+                      src={mediaItems[currentSlideIndex].url}
+                      alt={`Image ${currentSlideIndex + 1} for ${deal.title}`}
+                      className="max-w-full max-h-full object-contain"
+                      style={{ width: 'auto', height: 'auto', maxHeight: '100%' }}
+                    />
+                    {/* Hover overlay with zoom icon */}
+                    <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+                      <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                      </svg>
+                    </div>
+                  </>
+                )}
+                
+                {/* Navigation Buttons (only if more than 1 image) */}
+                {mediaItems.length > 1 && (
+                  <>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentSlideIndex((prev) => (prev - 1 + mediaItems.length) % mediaItems.length);
+                      }}
+                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 focus:outline-none focus:ring-2 focus:ring-white"
+                      aria-label="Previous image"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentSlideIndex((prev) => (prev + 1) % mediaItems.length);
+                      }}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-70 focus:outline-none focus:ring-2 focus:ring-white"
+                      aria-label="Next image"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                      </svg>
+                    </button>
+                  </>
+                )}
+                
+                {/* Image Counter */}
+                <div className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
+                  {currentSlideIndex + 1} / {mediaItems.length}
+                </div>
+              </div>
+            </div>
+            
+            {/* Thumbnail Gallery */}
+            {mediaItems.length > 1 && (
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                {mediaItems.map((item, index) => (
                   <div 
-                    className="w-full h-full flex items-center justify-center bg-gray-100 relative group"
-                    onClick={(e) => {
-                      if (item.type !== 'video') {
-                        openLightbox(index);
+                    key={`thumb-${index}`}
+                    className={`relative h-16 sm:h-20 cursor-pointer rounded overflow-hidden border-2 ${index === currentSlideIndex ? 'border-blue-500' : 'border-transparent hover:border-gray-300'}`}
+                    style={{ aspectRatio: '1/1' }}
+                    onClick={() => setCurrentSlideIndex(index)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setCurrentSlideIndex(index);
+                        e.preventDefault();
                       }
                     }}
+                    tabIndex="0"
+                    aria-label={`View image ${index + 1}`}
+                    role="button"
                   >
-                    {/* Hover overlay with icon for images */}
-                    {item.type !== 'video' && (
-                      <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
-                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
-                        </svg>
-                      </div>
-                    )}
-                    
                     {item.type === 'video' ? (
-                      <video 
-                        src={item.url}
-                        className="w-full h-full object-contain"
-                        controls
-                        playsInline
-                        preload="metadata"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // Don't open lightbox when clicking directly on video (allow video controls to work)
-                        }}
-                      >
-                        Your browser does not support the video tag.
-                      </video>
+                      <div className="w-full h-full bg-gray-100 relative">
+                        {/* Video Thumbnail */}
+                        <img 
+                          src={item.thumbnailUrl || '/placeholder-property.jpg'}
+                          alt={`Video thumbnail ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 5v14l11-7z"></path>
+                          </svg>
+                        </div>
+                      </div>
                     ) : (
                       <img 
                         src={item.url}
-                        alt={`Image ${index + 1} for ${deal.title}`}
-                        className="w-full h-full object-contain cursor-pointer"
+                        alt={`Thumbnail ${index + 1}`}
+                        className="w-full h-full object-cover"
                       />
                     )}
-                    
-                    {/* Image counter indicator */}
-                    <div className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded">
-                      {index + 1} / {mediaItems.length}
-                    </div>
                   </div>
-                </SwiperSlide>
-              ))}
-            </Swiper>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -539,6 +563,12 @@ export default function SubdomainOffMarketDetail({ id }) {
                   <video
                     src={mediaItems[currentSlideIndex].url}
                     className="max-w-full max-h-[90vh] object-contain"
+                    style={{ 
+                      width: 'auto', 
+                      height: 'auto', 
+                      maxWidth: '95%',
+                      maxHeight: '85vh'
+                    }}
                     controls
                     autoPlay
                     onClick={(e) => e.stopPropagation()} // Don't advance when clicking video
@@ -551,7 +581,12 @@ export default function SubdomainOffMarketDetail({ id }) {
                   src={mediaItems[currentSlideIndex].url}
                   alt={`${deal.title} - Image ${currentSlideIndex + 1}`}
                   className="max-w-full max-h-[90vh] object-contain cursor-pointer"
-                  style={{ width: 'auto', height: 'auto' }} // Let browser determine optimal size
+                  style={{ 
+                    width: 'auto', 
+                    height: 'auto', 
+                    maxWidth: '95%', // Allow a little margin on sides
+                    maxHeight: '85vh' // Allow room for controls and counter
+                  }} // Optimized sizing
                 />
               )}
             </div>
