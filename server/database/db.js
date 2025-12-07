@@ -18,8 +18,27 @@ if (isProduction) {
   // Configure PostgreSQL connection
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { rejectUnauthorized: false },
+    // Add connection timeout and retry logic
+    connectionTimeoutMillis: 10000,
+    query_timeout: 10000,
+    statement_timeout: 10000,
+    max: 10,
+    idleTimeoutMillis: 30000
   });
+  
+  // Test connection immediately
+  (async () => {
+    try {
+      const client = await pool.connect();
+      console.log('Successfully connected to PostgreSQL database!');
+      client.release();
+    } catch (err) {
+      console.error('❌ Error connecting to PostgreSQL:', err.message);
+      console.error('Check your DATABASE_URL environment variable and network connectivity');
+      // Don't exit - allow the application to handle connection issues
+    }
+  })();
 
   // Create wrapper API that matches SQLite API
   db = {
@@ -41,11 +60,27 @@ if (isProduction) {
       }
       
       try {
-        const result = await pool.query(pgQuery, params);
-        return { changes: result.rowCount || 0, ...result };
-      } catch (error) {
-        console.error('Database run error:', error);
-        throw error;
+        // Handle connection issues separately from query issues
+        const client = await pool.connect();
+        try {
+          const result = await client.query(pgQuery, params);
+          // Safely access result properties
+          return { 
+            changes: result && result.rowCount ? result.rowCount : 0, 
+            ...result 
+          };
+        } catch (queryError) {
+          console.error('Database query error:', queryError);
+          console.error('Query was:', pgQuery);
+          console.error('Parameters were:', params);
+          throw queryError;
+        } finally {
+          // Always release the client back to the pool
+          client.release();
+        }
+      } catch (connectionError) {
+        console.error('Database connection error:', connectionError);
+        throw connectionError;
       }
     },
 
@@ -62,11 +97,24 @@ if (isProduction) {
       pgQuery = pgQuery.replace(/\?/g, () => `$${++paramCount}`);
       
       try {
-        const result = await pool.query(pgQuery, params);
-        return result.rows[0];
-      } catch (error) {
-        console.error('Database get error:', error);
-        throw error;
+        // Handle connection issues separately from query issues
+        const client = await pool.connect();
+        try {
+          const result = await client.query(pgQuery, params);
+          // Safely access rows - might be undefined if query fails
+          return result && result.rows ? result.rows[0] : null;
+        } catch (queryError) {
+          console.error('Database query error:', queryError);
+          console.error('Query was:', pgQuery);
+          console.error('Parameters were:', params);
+          throw queryError;
+        } finally {
+          // Always release the client back to the pool
+          client.release();
+        }
+      } catch (connectionError) {
+        console.error('Database connection error:', connectionError);
+        throw connectionError;
       }
     },
 
@@ -83,11 +131,24 @@ if (isProduction) {
       pgQuery = pgQuery.replace(/\?/g, () => `$${++paramCount}`);
       
       try {
-        const result = await pool.query(pgQuery, params);
-        return result.rows;
-      } catch (error) {
-        console.error('Database all error:', error);
-        throw error;
+        // Handle connection issues separately from query issues
+        const client = await pool.connect();
+        try {
+          const result = await client.query(pgQuery, params);
+          // Safely access rows - might be undefined if query fails
+          return result && result.rows ? result.rows : [];
+        } catch (queryError) {
+          console.error('Database query error:', queryError);
+          console.error('Query was:', pgQuery);
+          console.error('Parameters were:', params);
+          throw queryError;
+        } finally {
+          // Always release the client back to the pool
+          client.release();
+        }
+      } catch (connectionError) {
+        console.error('Database connection error:', connectionError);
+        throw connectionError;
       }
     },
     

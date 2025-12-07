@@ -36,7 +36,7 @@ router.post('/signup', async (req, res) => {
   }
 
   // Check if user exists
-  db.get('SELECT id FROM users WHERE email = ?', [email], async (err, user) => {
+  db.get('SELECT id FROM users WHERE email = $1', [email], async (err, user) => {
     if (err) {
       console.error('Error checking user:', err);
       return res.status(500).json({ error: 'Internal server error' });
@@ -52,11 +52,19 @@ router.post('/signup', async (req, res) => {
       
       // Create user
       db.run(
-        'INSERT INTO users (email, password, firstName, lastName, phone) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO users (email, password, firstName, lastName, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id',
         [email, hashedPassword, firstName || null, lastName || null, phone || null],
-        function(err) {
+        async function(err, result) {
           if (err) {
             console.error('Error creating user:', err);
+            return res.status(500).json({ error: 'Failed to create user' });
+          }
+          
+          // Get the new user ID from the result
+          const userId = result && result.rows && result.rows[0] ? result.rows[0].id : null;
+          
+          if (!userId) {
+            console.error('Error: Failed to get user ID after insert');
             return res.status(500).json({ error: 'Failed to create user' });
           }
 
@@ -66,8 +74,8 @@ router.post('/signup', async (req, res) => {
           expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
           db.run(
-            'INSERT INTO user_sessions (userId, token, expiresAt) VALUES (?, ?, ?)',
-            [this.lastID, token, expiresAt.toISOString()],
+            'INSERT INTO user_sessions (userId, token, expiresAt) VALUES ($1, $2, $3)',
+            [userId, token, expiresAt.toISOString()],
             (err) => {
               if (err) {
                 console.error('Error creating session:', err);
@@ -78,7 +86,7 @@ router.post('/signup', async (req, res) => {
                 success: true,
                 token,
                 user: {
-                  id: this.lastID,
+                  id: userId,
                   email,
                   firstName,
                   lastName,
@@ -106,7 +114,7 @@ router.post('/signin', async (req, res) => {
 
   // Find user by email
   db.get(
-    'SELECT * FROM users WHERE email = ?',
+    'SELECT * FROM users WHERE email = $1',
     [email],
     async (err, user) => {
       if (err) {
@@ -133,7 +141,7 @@ router.post('/signin', async (req, res) => {
         expiresAt.setDate(expiresAt.getDate() + 30); // 30 days
 
         db.run(
-          'INSERT INTO user_sessions (userId, token, expiresAt) VALUES (?, ?, ?)',
+          'INSERT INTO user_sessions (userId, token, expiresAt) VALUES ($1, $2, $3)',
           [user.id, token, expiresAt.toISOString()],
           (err) => {
             if (err) {
@@ -171,7 +179,7 @@ router.post('/signout', (req, res) => {
     return res.status(400).json({ error: 'Token required' });
   }
 
-  db.run('DELETE FROM user_sessions WHERE token = ?', [token], (err) => {
+  db.run('DELETE FROM user_sessions WHERE token = $1', [token], (err) => {
     if (err) {
       console.error('Error deleting session:', err);
       return res.status(500).json({ error: 'Failed to sign out' });
@@ -192,7 +200,7 @@ router.get('/me', (req, res) => {
   db.get(
     `SELECT u.* FROM users u
      INNER JOIN user_sessions s ON u.id = s.userId
-     WHERE s.token = ? AND s.expiresAt > datetime('now')`,
+     WHERE s.token = $1 AND s.expiresAt > CURRENT_TIMESTAMP`,
     [token],
     (err, user) => {
       if (err) {
@@ -217,7 +225,7 @@ router.put('/profile', authenticate, async (req, res) => {
 
   // Check if email is being changed and if it's already taken
   if (email && email !== req.user.email) {
-    db.get('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId], async (err, existingUser) => {
+    db.get('SELECT id FROM users WHERE email = $1 AND id != $2', [email, userId], async (err, existingUser) => {
       if (err) {
         console.error('Error checking email:', err);
         return res.status(500).json({ error: 'Internal server error' });
@@ -229,7 +237,7 @@ router.put('/profile', authenticate, async (req, res) => {
 
       // Update user
       db.run(
-        'UPDATE users SET firstName = ?, lastName = ?, phone = ?, email = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE users SET firstName = $1, lastName = $2, phone = $3, email = $4, updatedAt = CURRENT_TIMESTAMP WHERE id = $5',
         [firstName || null, lastName || null, phone || null, email, userId],
         (err) => {
           if (err) {
@@ -238,7 +246,7 @@ router.put('/profile', authenticate, async (req, res) => {
           }
 
           // Get updated user
-          db.get('SELECT id, email, firstName, lastName, phone, role FROM users WHERE id = ?', [userId], (err, user) => {
+          db.get('SELECT id, email, firstName, lastName, phone, role FROM users WHERE id = $1', [userId], (err, user) => {
             if (err) {
               return res.status(500).json({ error: 'Internal server error' });
             }
@@ -250,7 +258,7 @@ router.put('/profile', authenticate, async (req, res) => {
   } else {
     // Update user without email change
     db.run(
-      'UPDATE users SET firstName = ?, lastName = ?, phone = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE users SET firstName = $1, lastName = $2, phone = $3, updatedAt = CURRENT_TIMESTAMP WHERE id = $4',
       [firstName || null, lastName || null, phone || null, userId],
       (err) => {
         if (err) {
@@ -259,7 +267,7 @@ router.put('/profile', authenticate, async (req, res) => {
         }
 
         // Get updated user
-        db.get('SELECT id, email, firstName, lastName, phone, role FROM users WHERE id = ?', [userId], (err, user) => {
+        db.get('SELECT id, email, firstName, lastName, phone, role FROM users WHERE id = $1', [userId], (err, user) => {
           if (err) {
             return res.status(500).json({ error: 'Internal server error' });
           }
@@ -284,7 +292,7 @@ router.put('/change-password', authenticate, async (req, res) => {
   }
 
   // Get current user with password
-  db.get('SELECT password FROM users WHERE id = ?', [userId], async (err, user) => {
+  db.get('SELECT password FROM users WHERE id = $1', [userId], async (err, user) => {
     if (err) {
       console.error('Error finding user:', err);
       return res.status(500).json({ error: 'Internal server error' });
@@ -307,7 +315,7 @@ router.put('/change-password', authenticate, async (req, res) => {
 
       // Update password
       db.run(
-        'UPDATE users SET password = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+        'UPDATE users SET password = $1, updatedAt = CURRENT_TIMESTAMP WHERE id = $2',
         [hashedNewPassword, userId],
         (err) => {
           if (err) {
@@ -336,7 +344,7 @@ function authenticate(req, res, next) {
   db.get(
     `SELECT u.* FROM users u
      INNER JOIN user_sessions s ON u.id = s.userId
-     WHERE s.token = ? AND s.expiresAt > datetime('now')`,
+     WHERE s.token = $1 AND s.expiresAt > CURRENT_TIMESTAMP`,
     [token],
     (err, user) => {
       if (err) {

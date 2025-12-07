@@ -19,7 +19,9 @@
     "migrate-blog-thumbnail": "node scripts/migrate-blog-thumbnail.js",
     "migrate-all": "node scripts/run-all-migrations.js",
     "seed-all": "npm run simple-seed",
-    "setup": "npm run init-db && npm run migrate-all && npm run simple-seed"
+    "setup": "npm run init-db && npm run migrate-all && npm run simple-seed",
+    "render-setup": "node scripts/render-db-setup.js",
+    "test-db": "node scripts/test-pg-connection.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

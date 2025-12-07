@@ -19,8 +19,8 @@ router.post('/properties/:id/featured', authenticate, requireAdmin, (req, res) =
   const { featured } = req.body;
 
   db.run(
-    'UPDATE properties SET featured = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
-    [featured ? 1 : 0, propertyId],
+    'UPDATE properties SET featured = $1, updatedAt = CURRENT_TIMESTAMP WHERE id = $2',
+    [featured ? true : false, propertyId],
     function(err) {
       if (err) {
         console.error('Error updating featured status:', err);
@@ -43,22 +43,25 @@ router.get('/properties', authenticate, requireAdmin, (req, res) => {
   let whereConditions = [];
   let params = [];
 
+  let paramCounter = 1;
+
   if (search) {
-    whereConditions.push('(title LIKE ? OR address LIKE ? OR city LIKE ?)');
     const searchTerm = `%${search}%`;
+    whereConditions.push(`(title LIKE $${paramCounter} OR address LIKE $${paramCounter+1} OR city LIKE $${paramCounter+2})`);
     params.push(searchTerm, searchTerm, searchTerm);
+    paramCounter += 3;
   }
 
   if (isOffMarket === 'true') {
-    whereConditions.push('isOffMarket = 1');
+    whereConditions.push('isOffMarket = true');
   } else if (isOffMarket === 'false') {
-    whereConditions.push('(isOffMarket = 0 OR isOffMarket IS NULL)');
+    whereConditions.push('(isOffMarket = false OR isOffMarket IS NULL)');
   }
 
   if (featured === 'true') {
-    whereConditions.push('featured = 1');
+    whereConditions.push('featured = true');
   } else if (featured === 'false') {
-    whereConditions.push('featured = 0');
+    whereConditions.push('featured = false');
   }
 
   const whereClause = whereConditions.length > 0 
@@ -79,8 +82,8 @@ router.get('/properties', authenticate, requireAdmin, (req, res) => {
     // Get properties
     const query = `
       SELECT p.*,
-        (SELECT json_group_array(
-          json_object(
+        (SELECT json_agg(
+          json_build_object(
             'id', pi.id,
             'imageUrl', pi.imageUrl,
             'thumbnailUrl', pi.thumbnailUrl,
@@ -88,14 +91,15 @@ router.get('/properties', authenticate, requireAdmin, (req, res) => {
           )
         )
         FROM property_images pi
-        WHERE pi.propertyId = p.id AND pi.isPrimary = 1) as images
+        WHERE pi.propertyId = p.id AND pi.isPrimary = true) as images
       FROM properties p
       ${whereClause}
       ORDER BY p.featured DESC, p.createdAt DESC
-      LIMIT ? OFFSET ?
+      LIMIT $${paramCounter} OFFSET $${paramCounter+1}
     `;
 
     const queryParams = [...params, parseInt(limit), offset];
+    paramCounter += 2;
 
     db.all(query, queryParams, (err, rows) => {
       if (err) {
@@ -105,9 +109,10 @@ router.get('/properties', authenticate, requireAdmin, (req, res) => {
 
       const properties = rows.map(row => ({
         ...row,
-        images: row.images ? JSON.parse(row.images) : [],
+        images: row.images || [], // PostgreSQL will return the JSON array directly
         price: parseFloat(row.price),
-        featured: row.featured === 1
+        // In PostgreSQL, booleans are already boolean values
+        featured: typeof row.featured === 'boolean' ? row.featured : row.featured === 1
       }));
 
       res.json({
@@ -160,8 +165,8 @@ router.get('/off-market-deals', authenticate, requireAdmin, (req, res) => {
 
   let query = `
     SELECT d.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -177,9 +182,9 @@ router.get('/off-market-deals', authenticate, requireAdmin, (req, res) => {
   let params = [];
 
   if (active === 'true') {
-    query += ' WHERE d.isActive = 1';
+    query += ' WHERE d.isActive = true';
   } else if (active === 'false') {
-    query += ' WHERE d.isActive = 0';
+    query += ' WHERE d.isActive = false';
   }
 
   query += ' ORDER BY d.isHotDeal DESC, d.displayOrder ASC, d.createdAt DESC';
@@ -192,12 +197,13 @@ router.get('/off-market-deals', authenticate, requireAdmin, (req, res) => {
 
     const deals = rows.map(row => ({
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
+      images: row.images || [],  // PostgreSQL returns json directly
+      videos: row.videos || [],  // PostgreSQL returns json directly
       thumbnailUrl: row.thumbnailUrl || null,
       thumbnailType: row.thumbnailType || null,
-      isActive: row.isActive === 1,
-      isHotDeal: row.isHotDeal === 1
+      // Handle both PostgreSQL boolean and SQLite integer
+      isActive: typeof row.isActive === 'boolean' ? row.isActive : row.isActive === 1,
+      isHotDeal: typeof row.isHotDeal === 'boolean' ? row.isHotDeal : row.isHotDeal === 1
     }));
 
     res.json({ deals });
@@ -210,8 +216,8 @@ router.get('/off-market-deals/:id', authenticate, requireAdmin, (req, res) => {
 
   const query = `
     SELECT d.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -222,8 +228,8 @@ router.get('/off-market-deals/:id', authenticate, requireAdmin, (req, res) => {
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -235,7 +241,7 @@ router.get('/off-market-deals/:id', authenticate, requireAdmin, (req, res) => {
       WHERE vid.dealId = d.id
       ORDER BY vid.displayOrder) as videos
     FROM off_market_deals d
-    WHERE d.id = ?
+    WHERE d.id = $1
   `;
 
   db.get(query, [dealId], (err, row) => {
@@ -250,12 +256,13 @@ router.get('/off-market-deals/:id', authenticate, requireAdmin, (req, res) => {
 
     const deal = {
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
+      images: row.images || [],  // PostgreSQL returns json directly
+      videos: row.videos || [],  // PostgreSQL returns json directly
       thumbnailUrl: row.thumbnailUrl || null,
       thumbnailType: row.thumbnailType || null,
-      isActive: row.isActive === 1,
-      isHotDeal: row.isHotDeal === 1
+      // Handle both PostgreSQL boolean and SQLite integer
+      isActive: typeof row.isActive === 'boolean' ? row.isActive : row.isActive === 1,
+      isHotDeal: typeof row.isHotDeal === 'boolean' ? row.isHotDeal : row.isHotDeal === 1
     };
 
     res.json({ deal });
@@ -288,66 +295,131 @@ router.post('/off-market-deals', authenticate, requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'Title and content are required' });
   }
 
-  db.run(
-    `INSERT INTO off_market_deals 
-     (title, content, propertyType, propertySubType, area, status, contactName, contactPhone, contactEmail, contactTitle, thumbnailUrl, thumbnailType, isActive, isHotDeal, displayOrder)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, content, propertyType || null, propertySubType || null, area || null, status || 'open', contactName || null, contactPhone || null, contactEmail || null, contactTitle || null, thumbnailUrl || null, thumbnailType || null, isActive ? 1 : 0, isHotDeal ? 1 : 0, displayOrder],
-    function(err) {
-      if (err) {
-        console.error('Error creating off-market deal:', err);
-        return res.status(500).json({ error: 'Failed to create off-market deal' });
-      }
+  // Convert to async function to properly use await
+  (async () => {
+    try {
+      // Insert the off-market deal
+      const result = await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO off_market_deals 
+           (title, content, propertyType, propertySubType, area, status, contactName, contactPhone, contactEmail, contactTitle, thumbnailUrl, thumbnailType, isActive, isHotDeal, displayOrder)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+          [title, content, propertyType || null, propertySubType || null, area || null, status || 'open', contactName || null, contactPhone || null, contactEmail || null, contactTitle || null, thumbnailUrl || null, thumbnailType || null, isActive ? true : false, isHotDeal ? true : false, displayOrder],
+          (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          }
+        );
+      });
 
-      const dealId = this.lastID;
+      // Get dealId from the result object for PostgreSQL or use lastID for SQLite
+      const dealId = result && result.rows && result.rows[0] ? result.rows[0].id : result.lastID;
 
       // Insert images if provided
-      if (images.length > 0) {
-        const imageStmt = db.prepare(`
-          INSERT INTO off_market_deal_images (dealId, imageUrl, thumbnailUrl, displayOrder, caption)
-          VALUES (?, ?, ?, ?, ?)
-        `);
-
-        images.forEach((img, index) => {
-          imageStmt.run(
-            dealId,
-            img.imageUrl,
-            img.thumbnailUrl || img.imageUrl,
-            img.displayOrder !== undefined ? img.displayOrder : index,
-            img.caption || null
-          );
-        });
-
-        imageStmt.finalize();
+      if (images && images.length > 0) {
+        try {
+          // Start transaction
+          await new Promise((resolve, reject) => {
+            db.run('BEGIN;', [], (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+          
+          // Insert each image
+          for (const [index, img] of images.entries()) {
+            await new Promise((resolve, reject) => {
+              db.run(
+                `INSERT INTO off_market_deal_images (dealId, imageUrl, thumbnailUrl, displayOrder, caption)
+                VALUES ($1, $2, $3, $4, $5)`,
+                [
+                  dealId,
+                  img.imageUrl,
+                  img.thumbnailUrl || img.imageUrl,
+                  img.displayOrder !== undefined ? img.displayOrder : index,
+                  img.caption || null
+                ],
+                (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+          }
+          
+          // Commit transaction
+          await new Promise((resolve, reject) => {
+            db.run('COMMIT;', [], (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+        } catch (err) {
+          console.error('Error inserting images:', err);
+          await new Promise((resolve) => {
+            db.run('ROLLBACK;', [], () => resolve());
+          });
+        }
       }
 
       // Insert videos if provided
-      if (videos.length > 0) {
-        const videoStmt = db.prepare(`
-          INSERT INTO off_market_deal_videos (dealId, videoUrl, thumbnailUrl, displayOrder, caption)
-          VALUES (?, ?, ?, ?, ?)
-        `);
-
-        videos.forEach((vid, index) => {
-          videoStmt.run(
-            dealId,
-            vid.videoUrl,
-            vid.thumbnailUrl || null,
-            vid.displayOrder !== undefined ? vid.displayOrder : index,
-            vid.caption || null
-          );
-        });
-
-        videoStmt.finalize();
+      if (videos && videos.length > 0) {
+        try {
+          // Start transaction
+          await new Promise((resolve, reject) => {
+            db.run('BEGIN;', [], (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+          
+          // Insert each video
+          for (const [index, vid] of videos.entries()) {
+            await new Promise((resolve, reject) => {
+              db.run(
+                `INSERT INTO off_market_deal_videos (dealId, videoUrl, thumbnailUrl, displayOrder, caption)
+                VALUES ($1, $2, $3, $4, $5)`,
+                [
+                  dealId,
+                  vid.videoUrl,
+                  vid.thumbnailUrl || null,
+                  vid.displayOrder !== undefined ? vid.displayOrder : index,
+                  vid.caption || null
+                ],
+                (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                }
+              );
+            });
+          }
+          
+          // Commit transaction
+          await new Promise((resolve, reject) => {
+            db.run('COMMIT;', [], (err) => {
+              if (err) reject(err);
+              else resolve();
+            });
+          });
+        } catch (err) {
+          console.error('Error inserting videos:', err);
+          await new Promise((resolve) => {
+            db.run('ROLLBACK;', [], () => resolve());
+          });
+        }
       }
-
+      
+      // Send response
       res.json({
         success: true,
         dealId,
         message: 'Off-market deal created successfully'
       });
+    } catch (err) {
+      console.error('Error creating off-market deal:', err);
+      res.status(500).json({ error: 'Failed to create off-market deal' });
     }
-  );
+  })();
 });
 
 // Update off-market deal
@@ -484,8 +556,8 @@ router.delete('/off-market-deals/:id', authenticate, requireAdmin, (req, res) =>
 router.get('/blogs', authenticate, requireAdmin, (req, res) => {
   const query = `
     SELECT b.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -508,8 +580,9 @@ router.get('/blogs', authenticate, requireAdmin, (req, res) => {
 
     const blogs = rows.map(row => ({
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      isPublished: row.isPublished === 1
+      images: row.images || [], // PostgreSQL returns json directly
+      // Handle both PostgreSQL boolean and SQLite integer
+      isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     }));
 
     res.json({ blogs });
@@ -522,8 +595,8 @@ router.get('/blogs/:id', authenticate, requireAdmin, (req, res) => {
 
   const query = `
     SELECT b.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -534,8 +607,8 @@ router.get('/blogs/:id', authenticate, requireAdmin, (req, res) => {
       FROM blog_images img
       WHERE img.blogId = b.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -547,7 +620,7 @@ router.get('/blogs/:id', authenticate, requireAdmin, (req, res) => {
       WHERE vid.blogId = b.id
       ORDER BY vid.displayOrder) as videos
     FROM blogs b
-    WHERE b.id = ?
+    WHERE b.id = $1
   `;
 
   db.get(query, [blogId], (err, row) => {
@@ -562,9 +635,10 @@ router.get('/blogs/:id', authenticate, requireAdmin, (req, res) => {
 
     const blog = {
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
-      isPublished: row.isPublished === 1
+      images: row.images || [], // PostgreSQL returns json directly
+      videos: row.videos || [], // PostgreSQL returns json directly
+      // Handle both PostgreSQL boolean and SQLite integer
+      isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     };
 
     res.json({ blog });

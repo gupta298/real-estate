@@ -213,7 +213,7 @@ class MLSService {
   async getPropertyByMLS(mlsNumber) {
     return new Promise((resolve, reject) => {
       db.get(
-        'SELECT * FROM properties WHERE mlsNumber = ?',
+        'SELECT * FROM properties WHERE mlsNumber = $1',
         [mlsNumber],
         (err, row) => {
           if (err) reject(err);
@@ -231,7 +231,8 @@ class MLSService {
           latitude, longitude, bedrooms, bathrooms, squareFeet, lotSize,
           propertyType, status, yearBuilt, garage, parkingSpaces,
           propertyTax, hoaFee, mlsStatus, listingDate, lastModified
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        RETURNING id
       `;
       
       db.run(sql, [
@@ -243,9 +244,9 @@ class MLSService {
         propertyData.status, propertyData.yearBuilt, propertyData.garage,
         propertyData.parkingSpaces, propertyData.propertyTax, propertyData.hoaFee,
         propertyData.mlsStatus, propertyData.listingDate, propertyData.lastModified
-      ], function(err) {
+      ], function(err, result) {
         if (err) reject(err);
-        else resolve(this.lastID);
+        else resolve(result && result.rows && result.rows[0] ? result.rows[0].id : null);
       });
     });
   }
@@ -254,14 +255,14 @@ class MLSService {
     return new Promise((resolve, reject) => {
       const sql = `
         UPDATE properties SET
-          title = ?, description = ?, price = ?, address = ?, city = ?,
-          state = ?, zipCode = ?, latitude = ?, longitude = ?,
-          bedrooms = ?, bathrooms = ?, squareFeet = ?, lotSize = ?,
-          propertyType = ?, status = ?, yearBuilt = ?, garage = ?,
-          parkingSpaces = ?, propertyTax = ?, hoaFee = ?,
-          mlsStatus = ?, listingDate = ?, lastModified = ?,
+          title = $1, description = $2, price = $3, address = $4, city = $5,
+          state = $6, zipCode = $7, latitude = $8, longitude = $9,
+          bedrooms = $10, bathrooms = $11, squareFeet = $12, lotSize = $13,
+          propertyType = $14, status = $15, yearBuilt = $16, garage = $17,
+          parkingSpaces = $18, propertyTax = $19, hoaFee = $20,
+          mlsStatus = $21, listingDate = $22, lastModified = $23,
           updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = $24
       `;
       
       db.run(sql, [
@@ -283,54 +284,78 @@ class MLSService {
   async insertImages(images) {
     if (images.length === 0) return;
     
-    return new Promise((resolve, reject) => {
-      const sql = `
-        INSERT INTO property_images (propertyId, mlsNumber, imageUrl, thumbnailUrl, isPrimary, displayOrder, caption)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `;
-      
-      const stmt = db.prepare(sql);
-      images.forEach(img => {
-        stmt.run([
-          img.propertyId, img.mlsNumber, img.imageUrl, img.thumbnailUrl,
-          img.isPrimary ? 1 : 0, img.displayOrder, img.caption
-        ]);
-      });
-      stmt.finalize((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+    // PostgreSQL doesn't handle prepare/finalize like SQLite does with multiple executions
+    // so we'll use individual inserts or a transaction
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Start a transaction for better performance with multiple inserts
+        await db.run('BEGIN;');
+        
+        const sql = `
+          INSERT INTO property_images (propertyId, mlsNumber, imageUrl, thumbnailUrl, isPrimary, displayOrder, caption)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
+        
+        // Insert each image individually
+        for (const img of images) {
+          await db.run(sql, [
+            img.propertyId, img.mlsNumber, img.imageUrl, img.thumbnailUrl,
+            img.isPrimary ? true : false, // Using boolean instead of 0/1
+            img.displayOrder, img.caption
+          ]);
+        }
+        
+        // Commit the transaction
+        await db.run('COMMIT;');
+        resolve();
+      } catch (err) {
+        // Rollback on error
+        await db.run('ROLLBACK;');
+        reject(err);
+      }
     });
   }
 
   async insertFeatures(features) {
     if (features.length === 0) return;
     
-    return new Promise((resolve, reject) => {
-      const sql = `
-        INSERT INTO property_features (propertyId, mlsNumber, feature, category)
-        VALUES (?, ?, ?, ?)
-      `;
-      
-      const stmt = db.prepare(sql);
-      features.forEach(feat => {
-        stmt.run([feat.propertyId, feat.mlsNumber, feat.feature, feat.category]);
-      });
-      stmt.finalize((err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+    // PostgreSQL approach similar to insertImages
+    return new Promise(async (resolve, reject) => {
+      try {
+        // Start a transaction for better performance
+        await db.run('BEGIN;');
+        
+        const sql = `
+          INSERT INTO property_features (propertyId, mlsNumber, feature, category)
+          VALUES ($1, $2, $3, $4)
+        `;
+        
+        // Insert each feature individually
+        for (const feat of features) {
+          await db.run(sql, [
+            feat.propertyId, feat.mlsNumber, feat.feature, feat.category
+          ]);
+        }
+        
+        // Commit the transaction
+        await db.run('COMMIT;');
+        resolve();
+      } catch (err) {
+        // Rollback on error
+        await db.run('ROLLBACK;');
+        reject(err);
+      }
     });
   }
 
   async startSyncLog(syncType) {
     return new Promise((resolve, reject) => {
       db.run(
-        'INSERT INTO mls_sync_log (syncType, status) VALUES (?, ?)',
+        'INSERT INTO mls_sync_log (syncType, status) VALUES ($1, $2) RETURNING id',
         [syncType, 'in_progress'],
-        function(err) {
+        function(err, result) {
           if (err) reject(err);
-          else resolve(this.lastID);
+          else resolve(result && result.rows && result.rows[0] ? result.rows[0].id : null);
         }
       );
     });
@@ -340,10 +365,10 @@ class MLSService {
     return new Promise((resolve, reject) => {
       db.run(
         `UPDATE mls_sync_log SET
-          status = ?, recordsProcessed = ?, recordsAdded = ?,
-          recordsUpdated = ?, recordsDeleted = ?, errorMessage = ?,
+          status = $1, recordsProcessed = $2, recordsAdded = $3,
+          recordsUpdated = $4, recordsDeleted = $5, errorMessage = $6,
           completedAt = CURRENT_TIMESTAMP
-        WHERE id = ?`,
+        WHERE id = $7`,
         [
           status, stats.recordsProcessed, stats.recordsAdded,
           stats.recordsUpdated, stats.recordsDeleted,
