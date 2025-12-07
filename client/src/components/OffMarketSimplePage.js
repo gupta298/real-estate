@@ -17,7 +17,6 @@ export default function OffMarketSimplePage() {
     error: null,
     isInIframe: false,
     expandedDeals: {}, // Track which deals are expanded
-    lightboxMedia: null, // For media modal view
     displayCount: 12, // For infinite scrolling, similar to main page
     isPropertyTypeOpen: false,
     isSubTypeOpen: false,
@@ -38,44 +37,7 @@ export default function OffMarketSimplePage() {
   // Create a ref for infinite scrolling observer
   const loadMoreRef = useRef(null);
   
-  // Open lightbox for media
-  function openLightbox(media, dealTitle, e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    setState(prev => ({
-      ...prev,
-      lightboxMedia: { media, dealTitle }
-    }));
-    // Prevent scrolling when lightbox is open
-    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
-      document.body.style.overflow = 'hidden';
-    }
-  }
-
-  // Close lightbox
-  function closeLightbox() {
-    // Pause all videos when closing
-    if (typeof document !== 'undefined') {
-      const videos = document.querySelectorAll('video');
-      if (videos) {
-        videos.forEach(video => {
-          if (video && typeof video.pause === 'function') video.pause();
-        });
-      }
-    }
-    
-    setState(prev => ({
-      ...prev,
-      lightboxMedia: null
-    }));
-    
-    // Restore scrolling
-    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
-      document.body.style.overflow = 'unset';
-    }
-  }
+  // Zoom functionality removed
 
   // Ref for storing interval ID safely within React's lifecycle - no longer used, but kept for compatibility
   const slideshowIntervalRef = useRef(null);
@@ -325,7 +287,6 @@ export default function OffMarketSimplePage() {
     // Cleanup function
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
     };
   }, [state.loading, state.allDeals]);
   
@@ -438,23 +399,21 @@ export default function OffMarketSimplePage() {
       });
   }
   
-  // Destructure state for easier access - this ensures we have direct access to state properties
-  // without any issues with variable hoisting or initialization order
+  // Destructure state for convenience and readability
   const {
     deals,
     allDeals,
     loading,
     error,
-    isInIframe,
     expandedDeals,
-    lightboxMedia,
     displayCount,
     isPropertyTypeOpen,
     isSubTypeOpen,
     isStatusOpen,
     selectedPropertyTypes,
     selectedPropertySubTypes,
-    selectedStatuses
+    selectedStatuses,
+    availableFilters
   } = state;
   
   // Custom CSS for deal content - simplified to only show first image
@@ -788,10 +747,6 @@ export default function OffMarketSimplePage() {
                                         playsInline
                                         autoPlay
                                         preload="auto"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          openLightbox(item, deal.title, e);
-                                        }}
                                       >
                                         Your browser does not support the video tag.
                                       </video>
@@ -801,11 +756,7 @@ export default function OffMarketSimplePage() {
                                       <img
                                         src={item.imageUrl || item.thumbnailUrl}
                                         alt={item.caption || deal.title || `Image ${index + 1}`}
-                                        className="h-full w-full object-cover cursor-pointer"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          openLightbox(item, deal.title, e);
-                                        }}
+                                        className="h-full w-full object-cover"
                                       />
                                     </div>
                                   )}
@@ -901,66 +852,7 @@ export default function OffMarketSimplePage() {
         )}
       </div>
 
-      {/* Lightbox Modal */}
-      {lightboxMedia && (
-        <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center"
-          onClick={closeLightbox}
-        >
-          <div 
-            className="relative w-full h-full max-w-7xl mx-auto px-4 py-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close Button */}
-            <button
-              onClick={closeLightbox}
-              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2"
-              aria-label="Close lightbox"
-            >
-              <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6" xmlns="http://www.w3.org/2000/svg">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-
-            {/* Deal Title */}
-            {lightboxMedia.dealTitle && (
-              <div className="text-center mb-4">
-                <h3 className="text-white text-xl font-semibold">{lightboxMedia.dealTitle}</h3>
-              </div>
-            )}
-
-            {/* Media Content */}
-            <div className="relative h-[calc(100vh-120px)] w-full flex items-center justify-center">
-              {lightboxMedia.media.type === 'video' ? (
-                <video
-                  src={lightboxMedia.media.videoUrl}
-                  controls
-                  className="max-w-full max-h-full object-contain"
-                  autoPlay
-                  preload="auto"
-                >
-                  Your browser does not support the video tag.
-                </video>
-              ) : (
-                <img
-                  src={lightboxMedia.media.imageUrl || lightboxMedia.media.thumbnailUrl}
-                  alt={lightboxMedia.media.caption || lightboxMedia.dealTitle || 'Expanded image'}
-                  className="max-w-full max-h-full object-contain"
-                />
-              )}
-              
-              {lightboxMedia.media.caption && (
-                <div className="absolute bottom-4 left-0 right-0 text-center">
-                  <p className="text-white bg-black bg-opacity-50 px-4 py-2 rounded inline-block">
-                    {lightboxMedia.media.caption}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Lightbox Modal removed */}
 
       {/* Backdrop for dropdowns */}
       {(isPropertyTypeOpen || isSubTypeOpen || isStatusOpen) && (
