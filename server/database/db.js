@@ -104,14 +104,30 @@ if (isProduction) {
     throw lastError;
   };
   
-  // Test connection immediately
+  // Test connection and warm up the database
   (async () => {
     try {
+      console.log('🔥 Warming up database connection...');
+      const startTime = Date.now();
       const client = await pool.connect();
       console.log('✅ Successfully connected to PostgreSQL database!');
+      
+      // Perform a simple query to fully initialize the connection
+      await client.query('SELECT 1');
+      console.log(`🔥 Database warm-up completed in ${Date.now() - startTime}ms`);
+      
+      // Pre-check if blogs table exists
+      try {
+        await client.query('SELECT COUNT(*) FROM blogs');
+        console.log('✅ Successfully verified blogs table exists');
+      } catch (tableErr) {
+        console.warn('⚠️ Blogs table check failed:', tableErr.message);
+      }
+      
       client.release();
     } catch (err) {
       console.error('❌ Error connecting to PostgreSQL:', err.message);
+      console.error('Stack trace:', err.stack);
       console.error('Check your DATABASE_URL environment variable and network connectivity');
       // Don't exit - allow the application to handle connection issues
     }
