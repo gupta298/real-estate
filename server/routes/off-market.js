@@ -2,6 +2,64 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 
+/**
+ * Convert database field names to camelCase
+ * PostgreSQL returns lowercase field names, but our frontend expects camelCase
+ */
+const toCamelCase = (obj) => {
+  if (obj === null || typeof obj !== 'object') return obj;
+  
+  // Handle arrays recursively
+  if (Array.isArray(obj)) {
+    return obj.map(item => toCamelCase(item));
+  }
+  
+  // Process object properties
+  const camelCaseObj = {};
+  
+  // Known field mappings - add more as needed
+  const fieldMappings = {
+    // Common fields
+    'id': 'id',
+    'createdat': 'createdAt',
+    'updatedat': 'updatedAt',
+    
+    // Deal fields
+    'propertytype': 'propertyType',
+    'propertysubtype': 'propertySubType',
+    'thumbnailurl': 'thumbnailUrl',
+    'thumbnailtype': 'thumbnailType',
+    'isactive': 'isActive',
+    'ishotdeal': 'isHotDeal',
+    'contactname': 'contactName',
+    'contactphone': 'contactPhone',
+    'contactemail': 'contactEmail',
+    'contacttitle': 'contactTitle',
+    'displayorder': 'displayOrder',
+    
+    // Image fields
+    'dealid': 'dealId',
+    'imageurl': 'imageUrl',
+    
+    // Video fields
+    'videourl': 'videoUrl',
+    'caption': 'caption'
+  };
+  
+  // Convert each property
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      // Find the camelCase version of this key
+      const camelKey = fieldMappings[key.toLowerCase()] || key;
+      
+      // Process nested objects/arrays recursively
+      camelCaseObj[camelKey] = toCamelCase(obj[key]);
+    }
+  }
+  
+  return camelCaseObj;
+};
+
 // Get all active off-market deals (public)
 // Simple health check for off-market API
 router.get('/health', async (req, res) => {
@@ -142,18 +200,21 @@ router.get('/', async (req, res) => {
         ...deal,
         images: imagesByDealId[deal.id] || [],
         videos: videosByDealId[deal.id] || [],
-        thumbnailUrl: deal.thumbnailUrl || null,
-        thumbnailType: deal.thumbnailType || null,
-        isHotDeal: typeof deal.isHotDeal === 'boolean' ? deal.isHotDeal : deal.isHotDeal === 1
+        thumbnailUrl: deal.thumbnailUrl || deal.thumbnailurl || null,
+        thumbnailType: deal.thumbnailType || deal.thumbnailtype || null,
+        isHotDeal: typeof deal.isHotDeal === 'boolean' ? deal.isHotDeal : (deal.isHotDeal === 1 || deal.ishotdeal === 1)
       }));
       
       // Release the client
       client.release();
       
+      // Convert all field names to camelCase
+      const camelCasedResult = toCamelCase(result);
+      
       // Return the result
       console.log(`⏱️ Off-market data processing completed in ${Date.now() - startTime}ms`);
       clearTimeout(requestTimeout);
-      res.json({ deals: result });
+      res.json({ deals: camelCasedResult });
     } catch (err) {
       // Handle errors and release client
       client.release();
@@ -241,16 +302,19 @@ router.get('/:id', async (req, res) => {
         ...deal,
         images: dealImages || [],
         videos: dealVideos || [],
-        thumbnailUrl: deal.thumbnailUrl || null,
-        thumbnailType: deal.thumbnailType || null,
-        isHotDeal: typeof deal.isHotDeal === 'boolean' ? deal.isHotDeal : deal.isHotDeal === 1
+        thumbnailUrl: deal.thumbnailUrl || deal.thumbnailurl || null,
+        thumbnailType: deal.thumbnailType || deal.thumbnailtype || null,
+        isHotDeal: typeof deal.isHotDeal === 'boolean' ? deal.isHotDeal : (deal.isHotDeal === 1 || deal.ishotdeal === 1)
       };
+      
+      // Convert all field names to camelCase
+      const camelCasedResult = toCamelCase(result);
       
       // Release the client and return the result
       client.release();
       console.log(`⏱️ Single deal processing completed in ${Date.now() - startTime}ms`);
       clearTimeout(requestTimeout);
-      res.json({ deal: result });
+      res.json({ deal: camelCasedResult });
     } catch (err) {
       client.release();
       console.error('Error processing single deal:', err);

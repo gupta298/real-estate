@@ -2,6 +2,61 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/db');
 
+/**
+ * Convert database field names to camelCase
+ * PostgreSQL returns lowercase field names, but our frontend expects camelCase
+ */
+const toCamelCase = (obj) => {
+  if (obj === null || typeof obj !== 'object') return obj;
+  
+  // Handle arrays recursively
+  if (Array.isArray(obj)) {
+    return obj.map(item => toCamelCase(item));
+  }
+  
+  // Process object properties
+  const camelCaseObj = {};
+  
+  // Known field mappings - add more as needed
+  const fieldMappings = {
+    // Common fields
+    'id': 'id',
+    'createdat': 'createdAt',
+    'updatedat': 'updatedAt',
+    
+    // Blog fields
+    'title': 'title',
+    'content': 'content',
+    'excerpt': 'excerpt',
+    'featuredimageurl': 'featuredImageUrl',
+    'thumbnailurl': 'thumbnailUrl',
+    'thumbnailtype': 'thumbnailType',
+    'ispublished': 'isPublished',
+    
+    // Image fields
+    'blogid': 'blogId',
+    'imageurl': 'imageUrl',
+    'displayorder': 'displayOrder',
+    
+    // Video fields
+    'videourl': 'videoUrl',
+    'caption': 'caption'
+  };
+  
+  // Convert each property
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      // Find the camelCase version of this key
+      const camelKey = fieldMappings[key.toLowerCase()] || key;
+      
+      // Process nested objects/arrays recursively
+      camelCaseObj[camelKey] = toCamelCase(obj[key]);
+    }
+  }
+  
+  return camelCaseObj;
+};
+
 // Diagnostic route to analyze performance issues
 router.get('/diagnostic', async (req, res) => {
   console.log('🔍 Running diagnostic checks for blog API');
@@ -79,8 +134,11 @@ router.get('/diagnostic', async (req, res) => {
     // Release the client
     if (client) client.release();
     
+    // Convert to camelCase for consistency
+    const camelCasedResults = toCamelCase(diagnosticResults);
+    
     // Return diagnostic results
-    res.json(diagnosticResults);
+    res.json(camelCasedResults);
   } catch (err) {
     console.error('Error in diagnostic route:', err);
     res.status(500).json({ error: 'Diagnostic failed', message: err.message });
@@ -137,9 +195,12 @@ router.get('/simple', async (req, res) => {
       client.release();
       console.log(`✅ Simple blogs query completed in ${Date.now() - startTime}ms - Found ${blogs.length} blogs`);
       
+      // Convert all field names to camelCase
+      const camelCasedBlogs = toCamelCase(blogs);
+      
       // Return just the basic blogs without images or videos
       return res.json({
-        blogs: blogs,
+        blogs: camelCasedBlogs,
         simplified: true,
         executionTime: `${Date.now() - startTime}ms`
       });
@@ -282,8 +343,11 @@ router.get('/', async (req, res) => {
         ...blog,
         images: imagesByBlogId[blog.id] || [],
         videos: videosByBlogId[blog.id] || [],
-        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
+        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : (blog.isPublished === 1 || blog.ispublished === 1)
       }));
+      
+      // Convert all field names to camelCase
+      const camelCasedResult = toCamelCase(result);
       
       // Release the client back to the pool
       client.release();
@@ -291,7 +355,7 @@ router.get('/', async (req, res) => {
       // Clear the timeout and return the result
       console.log(`⏱️ Blog data processing completed in ${Date.now() - startTime}ms`);
       clearTimeout(requestTimeout);
-      res.json({ blogs: result });
+      res.json({ blogs: camelCasedResult });
     } catch (err) {
       // Release the client on error
       client.release();
@@ -402,14 +466,17 @@ router.get('/latest', async (req, res) => {
         ...blog,
         images: imagesByBlogId[blog.id] || [],
         videos: videosByBlogId[blog.id] || [],
-        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
+        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : (blog.isPublished === 1 || blog.ispublished === 1)
       }));
+      
+      // Convert all field names to camelCase
+      const camelCasedResult = toCamelCase(result);
       
       // Release the client and return the result
       client.release();
       console.log(`⏱️ Latest blogs processing completed in ${Date.now() - startTime}ms`);
       clearTimeout(requestTimeout);
-      res.json({ blogs: result });
+      res.json({ blogs: camelCasedResult });
     } catch (err) {
       client.release();
       console.error('Error processing latest blogs:', err);
@@ -497,14 +564,17 @@ router.get('/:id', async (req, res) => {
         ...blog,
         images: blogImages || [],
         videos: blogVideos || [],
-        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
+        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : (blog.isPublished === 1 || blog.ispublished === 1)
       };
+      
+      // Convert all field names to camelCase
+      const camelCasedResult = toCamelCase(result);
       
       // Release the client and return the result
       client.release();
       console.log(`⏱️ Single blog processing completed in ${Date.now() - startTime}ms`);
       clearTimeout(requestTimeout);
-      res.json({ blog: result });
+      res.json({ blog: camelCasedResult });
     } catch (err) {
       client.release();
       console.error('Error processing single blog:', err);
