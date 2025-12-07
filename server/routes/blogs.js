@@ -165,7 +165,7 @@ router.get('/simple', async (req, res) => {
 // Get all published blogs (public) - sorted by latest
 router.get('/', async (req, res) => {
   console.log(`[${new Date().toISOString()}] GET /blogs request from: ${req.get('x-request-origin') || req.get('host') || 'unknown'}`);
-  console.log('⏱️ Starting blog retrieval - optimized query');
+  console.log('⏱️ Starting blog retrieval - FIXED implementation');
   
   // Log headers for debugging
   console.log(`Request headers: Accept=${req.get('accept')}, X-Requested-With=${req.get('x-requested-with')}`);
@@ -203,110 +203,109 @@ router.get('/', async (req, res) => {
   }, 15000); // 15 second safety net
   
   try {
-    // Use a simpler query to avoid expensive nested JSON aggregation
-    // First get the blogs
-    const blogsQuery = `
-      SELECT * FROM blogs
-      WHERE isPublished = true
-      ORDER BY createdAt DESC
-      LIMIT 50 -- Add limit to prevent huge result sets
-    `;
-    
-    console.log('⏱️ Executing blogs query');
+    console.log('⏱️ Starting direct connection approach (proven to work)');
     const startTime = Date.now();
     
-    // Convert to async/await to improve error handling
-    const blogs = await new Promise((resolve, reject) => {
-      db.all(blogsQuery, [], (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
+    // MAJOR CHANGE: Use the direct pool connection that we know works based on diagnostic results
+    const client = await db.pool.connect();
+    
+    try {
+      // Step 1: Get the blogs using direct connection
+      console.log('⏱️ Step 1: Fetching blogs');
+      const blogResult = await client.query(`
+        SELECT * FROM blogs
+        WHERE isPublished = true
+        ORDER BY createdAt DESC
+        LIMIT 50
+      `);
+      const blogs = blogResult.rows;
+      console.log(`⏱️ Blogs fetched in ${Date.now() - startTime}ms - Found ${blogs.length} blogs`);
+      
+      // Early return if no blogs found
+      if (blogs.length === 0) {
+        client.release();
+        clearTimeout(requestTimeout);
+        return res.json({ blogs: [] });
+      }
+      
+      // Optional: Step 2 - Get images if there are any blogs
+      let blogImages = [];
+      if (blogs.length > 0) {
+        try {
+          console.log('⏱️ Step 2: Fetching blog images');
+          const imageResult = await client.query(`
+            SELECT * FROM blog_images 
+            WHERE blogId IN (${blogs.map((_, i) => `$${i+1}`).join(',')}) 
+            ORDER BY blogId, displayOrder
+          `, blogs.map(b => b.id));
+          blogImages = imageResult.rows;
+          console.log(`⏱️ Images fetched in ${Date.now() - startTime}ms - Found ${blogImages.length} images`);
+        } catch (err) {
+          console.log(`Warning: Could not fetch blog images: ${err.message}`);
+          blogImages = [];
+        }
+      }
+      
+      // Optional: Step 3 - Get videos if there are any blogs
+      let blogVideos = [];
+      if (blogs.length > 0) {
+        try {
+          console.log('⏱️ Step 3: Fetching blog videos');
+          const videoResult = await client.query(`
+            SELECT * FROM blog_videos 
+            WHERE blogId IN (${blogs.map((_, i) => `$${i+1}`).join(',')}) 
+            ORDER BY blogId, displayOrder
+          `, blogs.map(b => b.id));
+          blogVideos = videoResult.rows;
+          console.log(`⏱️ Videos fetched in ${Date.now() - startTime}ms - Found ${blogVideos.length} videos`);
+        } catch (err) {
+          console.log(`Warning: Could not fetch blog videos: ${err.message}`);
+          blogVideos = [];
+        }
+      }
+    
+      // Group images by blogId
+      const imagesByBlogId = {};
+      blogImages.forEach(img => {
+        if (!imagesByBlogId[img.blogid]) imagesByBlogId[img.blogid] = [];
+        imagesByBlogId[img.blogid].push(img);
       });
-    });
-    
-    console.log(`⏱️ Blog query completed in ${Date.now() - startTime}ms - Found ${blogs.length} blogs`);
-    
-    // Early return if no blogs found
-    if (blogs.length === 0) {
-      return res.json({ blogs: [] });
+      
+      // Group videos by blogId
+      const videosByBlogId = {};
+      blogVideos.forEach(vid => {
+        if (!videosByBlogId[vid.blogid]) videosByBlogId[vid.blogid] = [];
+        videosByBlogId[vid.blogid].push(vid);
+      });
+      
+      // Combine the data
+      const result = blogs.map(blog => ({
+        ...blog,
+        images: imagesByBlogId[blog.id] || [],
+        videos: videosByBlogId[blog.id] || [],
+        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
+      }));
+      
+      // Release the client back to the pool
+      client.release();
+      
+      // Clear the timeout and return the result
+      console.log(`⏱️ Blog data processing completed in ${Date.now() - startTime}ms`);
+      clearTimeout(requestTimeout);
+      res.json({ blogs: result });
+    } catch (err) {
+      // Release the client on error
+      client.release();
+      console.error('Error processing blogs:', err);
+      console.log('DB Error:', err.message);
+      clearTimeout(requestTimeout); 
+      return res.status(500).json({ error: 'Failed to fetch blogs', details: err.message });
     }
-    
-    // Extract blog IDs for the secondary queries
-    const blogIds = blogs.map(blog => blog.id);
-    
-    // Get images in a separate query
-    const imagesQuery = `
-      SELECT * FROM blog_images 
-      WHERE blogId = ANY($1) 
-      ORDER BY blogId, displayOrder
-    `;
-    
-    // Get videos in a separate query 
-    const videosQuery = `
-      SELECT * FROM blog_videos
-      WHERE blogId = ANY($1)
-      ORDER BY blogId, displayOrder
-    `;
-    
-    // Execute both queries in parallel
-    const [images, videos] = await Promise.all([
-      new Promise((resolve, reject) => {
-        // Handle case where the blog_images table doesn't exist yet
-        db.all(imagesQuery.replace('ANY($1)', `ANY('{${blogIds.join(',')}}')::int[]`), [], (err, rows) => {
-          if (err) {
-            console.error('Error fetching blog images:', err.message);
-            resolve([]);
-          } else {
-            resolve(rows || []);
-          }
-        });
-      }),
-      new Promise((resolve, reject) => {
-        // Handle case where the blog_videos table doesn't exist yet
-        db.all(videosQuery.replace('ANY($1)', `ANY('{${blogIds.join(',')}}')::int[]`), [], (err, rows) => {
-          if (err) {
-            console.error('Error fetching blog videos:', err.message);
-            resolve([]);
-          } else {
-            resolve(rows || []);
-          }
-        });
-      })
-    ]);
-    
-    console.log(`⏱️ Image and video queries completed - Found ${images.length} images and ${videos.length} videos`);
-    
-    // Create a map for easier lookup
-    const imagesByBlogId = {};
-    const videosByBlogId = {};
-    
-    // Group images by blogId
-    images.forEach(img => {
-      if (!imagesByBlogId[img.blogId]) imagesByBlogId[img.blogId] = [];
-      imagesByBlogId[img.blogId].push(img);
-    });
-    
-    // Group videos by blogId
-    videos.forEach(vid => {
-      if (!videosByBlogId[vid.blogId]) videosByBlogId[vid.blogId] = [];
-      videosByBlogId[vid.blogId].push(vid);
-    });
-    
-    // Combine the data
-    const result = blogs.map(blog => ({
-      ...blog,
-      images: imagesByBlogId[blog.id] || [],
-      videos: videosByBlogId[blog.id] || [],
-      isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
-    }));
-    
-    console.log(`⏱️ Blog data processing completed in ${Date.now() - startTime}ms`);
-    clearTimeout(requestTimeout); // Clear safety timeout
-    res.json({ blogs: result });
   } catch (err) {
-    console.error('Error fetching blogs:', err);
-    console.log('DB Error:', err.message);
-    clearTimeout(requestTimeout); // Clear safety timeout even on error
-    return res.status(500).json({ error: 'Failed to fetch blogs', details: err.message });
+    console.error('Error connecting to database:', err);
+    console.log('Connection error:', err.message);
+    clearTimeout(requestTimeout);
+    return res.status(500).json({ error: 'Failed to connect to database', details: err.message });
   }
 });
 
@@ -318,101 +317,110 @@ router.get('/latest', async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   
   const limit = parseInt(req.query.limit) || 5;
+  console.log(`⏱️ Starting /latest for ${limit} blogs using direct connection approach`);
+  const startTime = Date.now();
+
+  // Safety timeout
+  const requestTimeout = setTimeout(() => {
+    console.error('⚠️ EMERGENCY TIMEOUT - Latest blogs request taking too long');
+    return res.json({ blogs: [], _emergency: true });
+  }, 10000);
 
   try {
-    // First get the blogs with a limit
-    const blogsQuery = `
-      SELECT * FROM blogs
-      WHERE isPublished = true
-      ORDER BY createdAt DESC
-      LIMIT $1
-    `;
+    // Use direct pool connection for best performance
+    const client = await db.pool.connect();
     
-    // Convert to async/await to improve error handling
-    const blogs = await new Promise((resolve, reject) => {
-      db.all(blogsQuery, [limit], (err, rows) => {
-        if (err) return reject(err);
-        resolve(rows || []);
+    try {
+      // Step 1: Get blogs with a limit
+      console.log('⏱️ Step 1: Fetching latest blogs');
+      const blogResult = await client.query(`
+        SELECT * FROM blogs
+        WHERE isPublished = true
+        ORDER BY createdAt DESC
+        LIMIT $1
+      `, [limit]);
+      const blogs = blogResult.rows;
+      console.log(`⏱️ Latest blogs fetched in ${Date.now() - startTime}ms - Found ${blogs.length} blogs`);
+      
+      // Early return if no blogs found
+      if (blogs.length === 0) {
+        client.release();
+        clearTimeout(requestTimeout);
+        return res.json({ blogs: [] });
+      }
+      
+      // Step 2: Get images if there are any blogs
+      let blogImages = [];
+      if (blogs.length > 0) {
+        try {
+          console.log('⏱️ Step 2: Fetching blog images');
+          const imageResult = await client.query(`
+            SELECT * FROM blog_images 
+            WHERE blogId IN (${blogs.map((_, i) => `$${i+1}`).join(',')}) 
+            ORDER BY blogId, displayOrder
+          `, blogs.map(b => b.id));
+          blogImages = imageResult.rows;
+          console.log(`⏱️ Images fetched in ${Date.now() - startTime}ms - Found ${blogImages.length} images`);
+        } catch (err) {
+          console.log(`Warning: Could not fetch blog images: ${err.message}`);
+          blogImages = [];
+        }
+      }
+      
+      // Step 3: Get videos if there are any blogs
+      let blogVideos = [];
+      if (blogs.length > 0) {
+        try {
+          console.log('⏱️ Step 3: Fetching blog videos');
+          const videoResult = await client.query(`
+            SELECT * FROM blog_videos 
+            WHERE blogId IN (${blogs.map((_, i) => `$${i+1}`).join(',')}) 
+            ORDER BY blogId, displayOrder
+          `, blogs.map(b => b.id));
+          blogVideos = videoResult.rows;
+          console.log(`⏱️ Videos fetched in ${Date.now() - startTime}ms - Found ${blogVideos.length} videos`);
+        } catch (err) {
+          console.log(`Warning: Could not fetch blog videos: ${err.message}`);
+          blogVideos = [];
+        }
+      }
+      
+      // Group images and videos by blogId
+      const imagesByBlogId = {};
+      blogImages.forEach(img => {
+        if (!imagesByBlogId[img.blogid]) imagesByBlogId[img.blogid] = [];
+        imagesByBlogId[img.blogid].push(img);
       });
-    });
-    
-    // Early return if no blogs found
-    if (blogs.length === 0) {
-      return res.json({ blogs: [] });
+      
+      const videosByBlogId = {};
+      blogVideos.forEach(vid => {
+        if (!videosByBlogId[vid.blogid]) videosByBlogId[vid.blogid] = [];
+        videosByBlogId[vid.blogid].push(vid);
+      });
+      
+      // Combine the data
+      const result = blogs.map(blog => ({
+        ...blog,
+        images: imagesByBlogId[blog.id] || [],
+        videos: videosByBlogId[blog.id] || [],
+        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
+      }));
+      
+      // Release the client and return the result
+      client.release();
+      console.log(`⏱️ Latest blogs processing completed in ${Date.now() - startTime}ms`);
+      clearTimeout(requestTimeout);
+      res.json({ blogs: result });
+    } catch (err) {
+      client.release();
+      console.error('Error processing latest blogs:', err);
+      clearTimeout(requestTimeout);
+      return res.status(500).json({ error: 'Failed to fetch latest blogs', details: err.message });
     }
-    
-    // Extract blog IDs for the secondary queries
-    const blogIds = blogs.map(blog => blog.id);
-    
-    // Get images in a separate query
-    const imagesQuery = `
-      SELECT * FROM blog_images 
-      WHERE blogId = ANY($1) 
-      ORDER BY blogId, displayOrder
-    `;
-    
-    // Get videos in a separate query 
-    const videosQuery = `
-      SELECT * FROM blog_videos
-      WHERE blogId = ANY($1)
-      ORDER BY blogId, displayOrder
-    `;
-    
-    // Execute both queries in parallel
-    const [images, videos] = await Promise.all([
-      new Promise((resolve, reject) => {
-        // Handle case where the blog_images table doesn't exist yet
-        db.all(imagesQuery.replace('ANY($1)', `ANY('{${blogIds.join(',')}}')::int[]`), [], (err, rows) => {
-          if (err) {
-            console.error('Error fetching blog images:', err.message);
-            resolve([]);
-          } else {
-            resolve(rows || []);
-          }
-        });
-      }),
-      new Promise((resolve, reject) => {
-        // Handle case where the blog_videos table doesn't exist yet
-        db.all(videosQuery.replace('ANY($1)', `ANY('{${blogIds.join(',')}}')::int[]`), [], (err, rows) => {
-          if (err) {
-            console.error('Error fetching blog videos:', err.message);
-            resolve([]);
-          } else {
-            resolve(rows || []);
-          }
-        });
-      })
-    ]);
-    
-    // Create a map for easier lookup
-    const imagesByBlogId = {};
-    const videosByBlogId = {};
-    
-    // Group images by blogId
-    images.forEach(img => {
-      if (!imagesByBlogId[img.blogId]) imagesByBlogId[img.blogId] = [];
-      imagesByBlogId[img.blogId].push(img);
-    });
-    
-    // Group videos by blogId
-    videos.forEach(vid => {
-      if (!videosByBlogId[vid.blogId]) videosByBlogId[vid.blogId] = [];
-      videosByBlogId[vid.blogId].push(vid);
-    });
-    
-    // Combine the data
-    const result = blogs.map(blog => ({
-      ...blog,
-      images: imagesByBlogId[blog.id] || [],
-      videos: videosByBlogId[blog.id] || [],
-      isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
-    }));
-    
-    res.json({ blogs: result });
   } catch (err) {
-    console.error('Error fetching latest blogs:', err);
-    console.log('DB Error:', err.message);
-    return res.status(500).json({ error: 'Failed to fetch latest blogs', details: err.message });
+    console.error('Error connecting to database for latest blogs:', err);
+    clearTimeout(requestTimeout);
+    return res.status(500).json({ error: 'Failed to connect to database', details: err.message });
   }
 });
 
@@ -424,74 +432,90 @@ router.get('/:id', async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   
   const blogId = req.params.id;
+  console.log(`⏱️ Starting single blog fetch for id=${blogId}`);
+  const startTime = Date.now();
+
+  // Safety timeout
+  const requestTimeout = setTimeout(() => {
+    console.error('⚠️ EMERGENCY TIMEOUT - Single blog request taking too long');
+    return res.status(504).json({ error: 'Request timeout', _emergency: true });
+  }, 10000);
 
   try {
-    // Get the blog
-    const blogQuery = `SELECT * FROM blogs WHERE id = $1 AND isPublished = true`;
+    // Use direct pool connection for best performance
+    const client = await db.pool.connect();
     
-    // Convert to async/await to improve error handling
-    const blog = await new Promise((resolve, reject) => {
-      db.get(blogQuery, [blogId], (err, row) => {
-        if (err) return reject(err);
-        resolve(row);
-      });
-    });
-    
-    if (!blog) {
-      return res.status(404).json({ error: 'Blog not found' });
+    try {
+      // Step 1: Get the blog
+      console.log('⏱️ Step 1: Fetching single blog');
+      const blogResult = await client.query(`
+        SELECT * FROM blogs 
+        WHERE id = $1 AND isPublished = true
+      `, [blogId]);
+      
+      const blog = blogResult.rows[0];
+      console.log(`⏱️ Blog fetch completed in ${Date.now() - startTime}ms - ${blog ? 'Found' : 'Not found'}`);
+      
+      // Return 404 if not found
+      if (!blog) {
+        client.release();
+        clearTimeout(requestTimeout);
+        return res.status(404).json({ error: 'Blog not found' });
+      }
+      
+      // Step 2: Get images for this blog
+      let blogImages = [];
+      try {
+        console.log('⏱️ Step 2: Fetching blog images');
+        const imageResult = await client.query(`
+          SELECT * FROM blog_images 
+          WHERE blogId = $1
+          ORDER BY displayOrder
+        `, [blogId]);
+        blogImages = imageResult.rows;
+        console.log(`⏱️ Images fetched in ${Date.now() - startTime}ms - Found ${blogImages.length} images`);
+      } catch (err) {
+        console.log(`Warning: Could not fetch blog images: ${err.message}`);
+      }
+      
+      // Step 3: Get videos for this blog
+      let blogVideos = [];
+      try {
+        console.log('⏱️ Step 3: Fetching blog videos');
+        const videoResult = await client.query(`
+          SELECT * FROM blog_videos 
+          WHERE blogId = $1
+          ORDER BY displayOrder
+        `, [blogId]);
+        blogVideos = videoResult.rows;
+        console.log(`⏱️ Videos fetched in ${Date.now() - startTime}ms - Found ${blogVideos.length} videos`);
+      } catch (err) {
+        console.log(`Warning: Could not fetch blog videos: ${err.message}`);
+      }
+      
+      // Combine the data
+      const result = {
+        ...blog,
+        images: blogImages || [],
+        videos: blogVideos || [],
+        isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
+      };
+      
+      // Release the client and return the result
+      client.release();
+      console.log(`⏱️ Single blog processing completed in ${Date.now() - startTime}ms`);
+      clearTimeout(requestTimeout);
+      res.json({ blog: result });
+    } catch (err) {
+      client.release();
+      console.error('Error processing single blog:', err);
+      clearTimeout(requestTimeout);
+      return res.status(500).json({ error: 'Failed to fetch blog', details: err.message });
     }
-    
-    // Get images for this blog
-    const imagesQuery = `
-      SELECT * FROM blog_images 
-      WHERE blogId = $1
-      ORDER BY displayOrder
-    `;
-    
-    // Get videos for this blog
-    const videosQuery = `
-      SELECT * FROM blog_videos
-      WHERE blogId = $1
-      ORDER BY displayOrder
-    `;
-    
-    // Execute both queries in parallel
-    const [images, videos] = await Promise.all([
-      new Promise((resolve, reject) => {
-        db.all(imagesQuery, [blogId], (err, rows) => {
-          if (err) {
-            console.error('Error fetching blog images:', err.message);
-            resolve([]);
-          } else {
-            resolve(rows || []);
-          }
-        });
-      }),
-      new Promise((resolve, reject) => {
-        db.all(videosQuery, [blogId], (err, rows) => {
-          if (err) {
-            console.error('Error fetching blog videos:', err.message);
-            resolve([]);
-          } else {
-            resolve(rows || []);
-          }
-        });
-      })
-    ]);
-    
-    // Combine the data
-    const result = {
-      ...blog,
-      images: images || [],
-      videos: videos || [],
-      isPublished: typeof blog.isPublished === 'boolean' ? blog.isPublished : blog.isPublished === 1
-    };
-    
-    res.json({ blog: result });
   } catch (err) {
-    console.error('Error fetching blog:', err);
-    console.log('DB Error:', err.message);
-    return res.status(500).json({ error: 'Failed to fetch blog', details: err.message });
+    console.error('Error connecting to database for single blog:', err);
+    clearTimeout(requestTimeout);
+    return res.status(500).json({ error: 'Failed to connect to database', details: err.message });
   }
 });
 
