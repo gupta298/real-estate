@@ -6,25 +6,45 @@ import Image from 'next/image';
 import { API_URL } from '@/utils/apiConfig';
 
 /**
- * Helper function to ensure image URLs are absolute
+ * Helper function to ensure image URLs are absolute with error handling
  */
 const getImageUrl = (url) => {
-  if (!url) return '/placeholder-property.jpg';
-  
-  // If it's already an absolute URL (starts with http:// or https://)
-  if (url.match(/^https?:\/\//)) {
+  try {
+    // Handle null/undefined URLs
+    if (!url) return '/placeholder-property.jpg';
+    
+    // Handle empty strings
+    if (url.trim() === '') return '/placeholder-property.jpg';
+    
+    // If it's already an absolute URL (starts with http:// or https://)
+    if (url.match(/^https?:\/\//)) {
+      return url;
+    }
+    
+    // If it's a relative URL, append it to the API URL
+    if (url.startsWith('/')) {
+      // For static exports, use the current origin
+      const baseUrl = typeof window !== 'undefined' ? 
+        // For browser: use window.location.origin
+        window.location.origin : 
+        // For SSR: use API_URL with /api removed
+        API_URL.replace(/\/api$/, '');
+      
+      return `${baseUrl}${url}`;
+    }
+    
+    // Check if URL might be a partial path missing the leading slash
+    if (!url.startsWith('/') && !url.match(/^https?:\/\//)) {
+      // Add leading slash and try again
+      return getImageUrl(`/${url}`);
+    }
+    
+    // Default fallback
     return url;
+  } catch (err) {
+    console.error('Error processing image URL:', err);
+    return '/placeholder-property.jpg';
   }
-  
-  // If it's a relative URL, append it to the API URL
-  if (url.startsWith('/')) {
-    // Remove /api from API_URL if present since image URLs are typically served from root
-    const baseUrl = API_URL.replace(/\/api$/, '');
-    return `${baseUrl}${url}`;
-  }
-  
-  // Default fallback
-  return url;
 };
 
 /**

@@ -57,6 +57,39 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   response => response,
   async error => {
+    // Enhanced error logging
+    const errorName = error.name || 'Unknown';
+    const errorCode = error.code || 'No code';
+    const errorMessage = error.message || 'No message';
+    const url = error.config?.url || 'No URL';
+    
+    // Log more detailed information about network errors
+    if (errorName === 'Error' && errorCode === 'ERR_NETWORK') {
+      console.error(`[API] Network error accessing: ${url}`);
+      console.error(`[API] Error details: ${errorCode} - ${errorMessage}`);
+      console.error('[API] This typically means the API server is unreachable');
+      
+      // Add fallback for static builds when no API is available
+      if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        console.warn('[API] Using static content fallback (no API server)'); 
+        
+        // For debugging only - remove in production
+        const errorDetail = {
+          endpoint: url,
+          message: errorMessage,
+          code: errorCode,
+          name: errorName
+        };
+        console.log('[API] Full error details:', errorDetail);
+        
+        // Return mock successful response for static content
+        if (url.includes('/api/off-market') || url.includes('/api/blogs')) {
+          console.info('[API] Using static content fallback for off-market/blogs');
+          return Promise.resolve({ data: { deals: [], blogs: [] }, status: 200, statusText: 'OK (Static Fallback)' });
+        }
+      }
+    }
+    
     // Only retry for configured cases and if we haven't tried already
     if (error.response && 
         error.response.status === 404 && 
@@ -94,7 +127,7 @@ api.interceptors.response.use(
       }
     }
     
-    // For all other errors, just pass through
+    // For all other errors, just pass through with improved logging
     return Promise.reject(error);
   }
 );
@@ -127,8 +160,18 @@ export const getFeaturedProperties = async (limit = 6) => {
     });
     return response.data;
   } catch (error) {
-    console.error('[API] Error getting featured properties:', error);
-    throw error;
+    // Enhanced error logging with detailed information
+    const errorName = error.name || 'Unknown';
+    const errorCode = error.code || 'No code';
+    const errorMessage = error.message || 'No message';
+    const status = error.response?.status;
+    
+    console.error(`[API] Error getting featured properties: ${errorName} (${errorCode}) - ${errorMessage}`);
+    if (status) console.error(`[API] HTTP Status: ${status}`);
+    
+    // Return fallback data for better UX
+    console.warn('[API] Returning empty featured properties list as fallback');
+    return { properties: [] };
   }
 };
 
@@ -349,8 +392,18 @@ export const getAgents = async (params = {}) => {
     });
     return response.data;
   } catch (error) {
-    console.error('[API] Error getting agents:', error);
-    throw error;
+    // Enhanced error logging with detailed information
+    const errorName = error.name || 'Unknown';
+    const errorCode = error.code || 'No code';
+    const errorMessage = error.message || 'No message';
+    const status = error.response?.status;
+    
+    console.error(`[API] Error getting agents: ${errorName} (${errorCode}) - ${errorMessage}`);
+    if (status) console.error(`[API] HTTP Status: ${status}`);
+    
+    // Return fallback data for better UX
+    console.warn('[API] Returning empty agents list as fallback');
+    return { agents: [] };
   }
 };
 

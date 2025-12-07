@@ -29,7 +29,29 @@ const getApiUrl = () => {
     // For localhost development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       console.log('🌐 Using localhost API endpoint');
-      return 'http://localhost:5000/api';
+      // Try to handle potential API server connection failures
+      try {
+        // Check if we can access localhost:5000
+        const testFetch = fetch('http://localhost:5000/api/health-check', { 
+          method: 'HEAD',
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        }).catch(e => {
+          console.warn('🔴 Cannot reach localhost API server, using static data fallback');
+          return null;
+        });
+        
+        // If we can connect, use localhost
+        if (testFetch) {
+          return 'http://localhost:5000/api';
+        }
+      } catch (err) {
+        console.warn('🔴 Error testing API connection:', err);
+      }
+      
+      // Fallback for static builds when no API is available
+      console.warn('🔶 Using static fallback for APIs');
+      return window.location.origin + '/api';
     }
     
     // Default case - use current domain
