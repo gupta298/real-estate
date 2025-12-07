@@ -123,7 +123,7 @@ export default function BlogsSimplePage() {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
     // Only add keyboard handlers when lightbox is open
-    if (!lightboxImages) return;
+    if (!state.lightboxImages) return;
     
     // Use a timeout to ensure hydration is complete
     const timerId = setTimeout(() => {
@@ -170,7 +170,7 @@ export default function BlogsSimplePage() {
     }, 0);
     
     return () => clearTimeout(timerId);
-  }, [lightboxImages]);
+  }, [state.lightboxImages]);
   
   // Infinite scroll observer effect - separated to prevent hydration mismatch
   useEffect(() => {
@@ -246,7 +246,7 @@ export default function BlogsSimplePage() {
 
   // References moved to top of component
   
-  // Open lightbox for image - safe for server rendering
+  // Open lightbox for image - safe for server rendering with better property handling
   function openLightbox(image, blogTitle, e) {
     // Skip DOM operations during server rendering
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -256,14 +256,27 @@ export default function BlogsSimplePage() {
       e.stopPropagation();
     }
     
+    // Ensure we have valid data
+    const safeImage = image || {};
+    const safeBlogTitle = blogTitle || 'Blog Image';
+    
     // Store current active element to restore focus later
     previousFocusRef.current = document.activeElement;
     
-    // Update state in a separate microtask to avoid hydration issues
-    Promise.resolve().then(() => {
+    // Delay state update to avoid hydration issues
+    setTimeout(() => {
       setState(prev => ({
         ...prev,
-        lightboxImages: { image, blogTitle }
+        lightboxImages: { 
+          image: {
+            ...safeImage,
+            type: safeImage.type || 'image',
+            imageUrl: safeImage.imageUrl || safeImage.thumbnailUrl || '',
+            videoUrl: safeImage.videoUrl || '',
+            caption: safeImage.caption || ''
+          }, 
+          blogTitle: safeBlogTitle
+        }
       }));
       
       // Prevent scrolling when lightbox is open
@@ -277,7 +290,7 @@ export default function BlogsSimplePage() {
           closeButtonRef.current.focus();
         }
       }, 50);
-    });
+    }, 0);
   }
 
   // Close lightbox - safe for server rendering
@@ -355,16 +368,8 @@ export default function BlogsSimplePage() {
     }
   `;
   
-  // Destructure state for easier access, avoiding potential issues with optional chaining in SSR
-  const blogs = state.blogs || [];
-  const loading = state.loading;
-  const error = state.error;
-  const isInIframe = state.isInIframe;
-  const expandedBlogs = state.expandedBlogs || {};
-  const lightboxImages = state.lightboxImages;
-  const displayCount = state.displayCount || 12;
-  
   // Use this flag to safely determine if we're running in the browser
+  // Avoid destructuring state to ensure all variables are accessed via state.property
   const isBrowser = typeof window !== 'undefined';
   
   // For the initial server-side render, we want to show a minimal loading state
@@ -406,21 +411,21 @@ export default function BlogsSimplePage() {
         {process.env.NODE_ENV !== 'production' && (
           <div className="bg-gray-100 p-4 mb-6 rounded-lg text-xs">
             <p><strong>Debug Info:</strong></p>
-            <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
+            <p>Subdomain: {state.isInIframe ? 'In iframe' : 'Not in iframe'}</p>
             <p>URL: {window.location.href}</p>
             <p>Simple version with minimal React hooks</p>
           </div>
         )}
         
         {/* Loading state */}
-        {loading ? (
+        {state.loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-bf-blue"></div>
             <p className="mt-4 text-gray-600">Loading blog posts...</p>
           </div>
-        ) : error ? (
+        ) : state.error ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-md">
-            <p className="text-gray-500 text-lg">Error: {error}</p>
+            <p className="text-gray-500 text-lg">Error: {state.error}</p>
             <button 
               onClick={handleRetry}
               className="mt-4 px-4 py-2 bg-bf-blue text-white rounded hover:bg-blue-700 transition-colors"
@@ -428,7 +433,7 @@ export default function BlogsSimplePage() {
               Retry
             </button>
           </div>
-        ) : !blogs || blogs.length === 0 ? (
+        ) : !state.blogs || state.blogs.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-lg shadow-md">
             <p className="text-gray-500 text-lg">No blog posts available at the moment.</p>
           </div>
@@ -436,7 +441,7 @@ export default function BlogsSimplePage() {
           <>
             {/* Blog list */}
             <div className="space-y-6">
-              {blogs.slice(0, displayCount).map((blog) => (
+              {state.blogs.slice(0, state.displayCount).map((blog) => (
                 <div key={blog.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow duration-300">
                   {/* Featured Image/Media Carousel */}
                   {(() => {
@@ -494,50 +499,70 @@ export default function BlogsSimplePage() {
                         </div>
                         <div className="relative h-64 w-full">
                           <div className="static-gallery h-full w-full">
-                            {/* Show only the first media item (thumbnail) */}
-                            {allMedia.length > 0 && (
-                              <div className="relative h-64 w-full bg-black">
-                                {allMedia[0].type === 'video' ? (
-                                  <div 
-                                    className="w-full h-full flex items-center justify-center"
-                                    onClick={e => {
-                                      e.stopPropagation();
-                                      openLightbox(allMedia[0], blog.title, e);
-                                    }}
-                                  >
-                                    <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
-                                      <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
-                                      </svg>
-                                    </div>
-                                    <video 
-                                      src={allMedia[0].videoUrl}
-                                      className="w-full h-full object-contain"
-                                      style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
-                                      muted
-                                      playsInline
-                                      preload="auto"
-                                      onClick={e => e.stopPropagation()}
-                                    >
-                                      Your browser does not support the video tag.
-                                    </video>
-                                  </div>
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                    <img 
-                                      src={allMedia[0].imageUrl || allMedia[0].thumbnailUrl} 
-                                      alt={allMedia[0].caption || blog.title || `Blog Image`} 
-                                      className="object-contain cursor-pointer"  
-                                      style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                            {/* Show only the first media item (thumbnail) with safe property access */}
+                            {allMedia.length > 0 && (() => {
+                              // Extract the first item safely to avoid TDZ errors
+                              const item = allMedia[0] || {};
+                              const mediaType = item.type || 'image';
+                              const videoUrl = item.videoUrl || '';
+                              const imageUrl = item.imageUrl || item.thumbnailUrl || '';
+                              const caption = item.caption || '';
+                              const blogTitle = blog.title || 'Blog Post';
+                              
+                              return (
+                                <div className="relative h-64 w-full bg-black">
+                                  {mediaType === 'video' ? (
+                                    <div 
+                                      className="w-full h-full flex items-center justify-center"
                                       onClick={e => {
-                                        e.stopPropagation();
-                                        openLightbox(allMedia[0], blog.title, e);
+                                        if (e && typeof e.stopPropagation === 'function') {
+                                          e.stopPropagation();
+                                        }
+                                        if (isBrowser) {
+                                          openLightbox(item, blogTitle, e);
+                                        }
                                       }}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                    >
+                                      <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
+                                        <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                                        </svg>
+                                      </div>
+                                      <video 
+                                        src={videoUrl}
+                                        className="w-full h-full object-contain"
+                                        style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
+                                        muted
+                                        playsInline
+                                        preload="auto"
+                                        onClick={isBrowser ? (e => {
+                                          if (e && typeof e.stopPropagation === 'function') {
+                                            e.stopPropagation();
+                                          }
+                                        }) : undefined}
+                                      >
+                                        Your browser does not support the video tag.
+                                      </video>
+                                    </div>
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                      <img 
+                                        src={imageUrl} 
+                                        alt={caption || blogTitle || `Blog Image`} 
+                                        className="object-contain cursor-pointer"  
+                                        style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                                        onClick={isBrowser ? (e => {
+                                          if (e && typeof e.stopPropagation === 'function') {
+                                            e.stopPropagation();
+                                          }
+                                          openLightbox(item, blogTitle, e);
+                                        }) : undefined}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {allMedia.length > 1 && (
                               <div className="mt-2 text-center">
                                 <span className="text-xs text-gray-500">Click to view all {allMedia.length} media</span>
@@ -552,11 +577,11 @@ export default function BlogsSimplePage() {
                     <p className="text-sm text-gray-500 mb-2">{formatDate(blog.publishedAt || blog.createdAt)}</p>
                     <h2 className="text-2xl font-bold text-gray-900 mb-3">{blog.title}</h2>
                     <p className="text-gray-700 mb-4">
-                      {blog.excerpt || blog.content?.substring(0, 200).replace(/<[^>]*>/g, '') || 'No content available.'}{!expandedBlogs[blog.id] && blog.content?.length > 200 ? '...' : ''}
+                      {blog.excerpt || blog.content?.substring(0, 200).replace(/<[^>]*>/g, '') || 'No content available.'}{!state.expandedBlogs[blog.id] && blog.content?.length > 200 ? '...' : ''}
                     </p>
                     
                     {/* Expanded blog content */}
-                    {expandedBlogs[blog.id] && (
+                    {state.expandedBlogs[blog.id] && (
                       <div className="blog-content mb-4">
                         {/* Blog full content */}
                         <div dangerouslySetInnerHTML={{ __html: processContent(blog.content) }} />
@@ -567,10 +592,10 @@ export default function BlogsSimplePage() {
                       onClick={() => toggleBlogExpansion(blog.id)}
                       className="flex items-center gap-2 text-bf-blue hover:text-bf-gold font-semibold transition-colors"
                     >
-                      {expandedBlogs[blog.id] ? 'Read Less' : 'Read More'}
+                      {state.expandedBlogs[blog.id] ? 'Read Less' : 'Read More'}
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        className={`h-5 w-5 transition-transform ${expandedBlogs[blog.id] ? 'transform rotate-180' : ''}`}
+                        className={`h-5 w-5 transition-transform ${state.expandedBlogs[blog.id] ? 'transform rotate-180' : ''}`}
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -584,7 +609,7 @@ export default function BlogsSimplePage() {
             </div>
 
             {/* Infinite scroll indicator - only show if there might be more posts */}
-            {!loading && !error && blogs.length > 0 && displayCount < blogs.length && (
+            {!state.loading && !state.error && state.blogs.length > 0 && state.displayCount < state.blogs.length && (
               <div className="text-center py-8" ref={loadMoreRef}>
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-bf-blue"></div>
                 <p className="text-gray-500 text-sm mt-2">Loading more posts...</p>
@@ -592,9 +617,9 @@ export default function BlogsSimplePage() {
             )}
             
             {/* Show count if all blogs are loaded */}
-            {!loading && !error && blogs.length > 0 && displayCount >= blogs.length && (
+            {!state.loading && !state.error && state.blogs.length > 0 && state.displayCount >= state.blogs.length && (
               <div className="text-center py-8 text-gray-500 text-sm">
-                Showing all {blogs.length} post{blogs.length !== 1 ? 's' : ''}
+                Showing all {state.blogs.length} post{state.blogs.length !== 1 ? 's' : ''}
               </div>
             )}
           </>
@@ -602,85 +627,96 @@ export default function BlogsSimplePage() {
       </div>
 
       {/* Lightbox Modal - Full Screen */}
-      {lightboxImages && (
-        <div 
-          className="fixed inset-0 z-50 bg-black flex items-center justify-center" 
-          onClick={closeLightbox}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="lightbox-title"
-          style={{ height: '100vh', width: '100vw' }}
-        >
+      {isBrowser && state.lightboxImages && (() => {
+        // Safely extract properties to avoid TDZ errors
+        const blogTitle = state.lightboxImages?.blogTitle || '';
+        const mediaItem = state.lightboxImages?.image || {};
+        const mediaType = mediaItem?.type || 'image';
+        const imageUrl = mediaItem?.imageUrl || mediaItem?.thumbnailUrl || '';
+        const videoUrl = mediaItem?.videoUrl || '';
+        const caption = mediaItem?.caption || '';
+        
+        return (
           <div 
-            className="relative w-full h-full flex items-center justify-center"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 bg-black flex items-center justify-center" 
+            onClick={closeLightbox}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="lightbox-title"
+            style={{ height: '100vh', width: '100vw' }}
           >
-            {/* Hidden title for screen readers */}
-            <h2 id="lightbox-title" className="sr-only">{lightboxImages.blogTitle} - Image Gallery</h2>
-            {/* Close Button */}
-            <button
-              ref={closeButtonRef}
-              onClick={closeLightbox}
-              className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-white"
-              aria-label="Close lightbox"
+            <div 
+              className="relative w-full h-full flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
             >
-              <FiX className="w-6 h-6" />
-            </button>
-
-            {/* Blog Title */}
-            {lightboxImages.blogTitle && (
-              <div className="text-center mb-4">
-                <h3 className="text-white text-xl font-semibold">{lightboxImages.blogTitle}</h3>
-              </div>
-            )}
-
-            {/* Media Content */}
-            <div className="relative w-full h-full flex items-center justify-center lightbox-media">
-              {lightboxImages.image.type === 'video' ? (
-                <video
-                  src={lightboxImages.image.videoUrl}
-                  controls
-                  className="object-contain"
-                  style={{ 
-                    width: 'auto',
-                    height: 'auto',
-                    maxWidth: '100vw',
-                    maxHeight: '100vh',
-                    objectFit: 'contain'
-                  }}
-                  autoPlay
-                  preload="auto"
-                >
-                  Your browser does not support the video tag.
-                </video>
-              ) : (
-                <img
-                  src={lightboxImages.image.imageUrl || lightboxImages.image.thumbnailUrl}
-                  alt={lightboxImages.image.caption || lightboxImages.blogTitle || 'Expanded image'}
-                  className="object-contain cursor-pointer"
-                  style={{ 
-                    width: 'auto',
-                    height: 'auto',
-                    maxWidth: '100vw',
-                    maxHeight: '100vh',
-                    objectFit: 'contain'
-                  }}
-                />
-              )}
+              {/* Hidden title for screen readers */}
+              <h2 id="lightbox-title" className="sr-only">{blogTitle} - Image Gallery</h2>
               
-              {/* Image Counter and Keyboard Instructions */}
-              <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center justify-center gap-2">
-                <div className="bg-black bg-opacity-80 text-white px-4 py-1 rounded-full text-sm">
-                  {lightboxImages.image.caption || `${lightboxImages.blogTitle} - Image`}
+              {/* Close Button */}
+              <button
+                ref={closeButtonRef}
+                onClick={closeLightbox}
+                className="absolute top-4 right-4 z-10 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-2 focus:outline-none focus:ring-2 focus:ring-white"
+                aria-label="Close lightbox"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+  
+              {/* Blog Title */}
+              {blogTitle && (
+                <div className="text-center mb-4">
+                  <h3 className="text-white text-xl font-semibold">{blogTitle}</h3>
                 </div>
-                <div className="bg-black bg-opacity-70 text-white text-xs px-4 py-1 rounded-full">
-                  Press Esc to close • Space for video play/pause
+              )}
+  
+              {/* Media Content */}
+              <div className="relative w-full h-full flex items-center justify-center lightbox-media">
+                {mediaType === 'video' ? (
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="object-contain"
+                    style={{ 
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100vw',
+                      maxHeight: '100vh',
+                      objectFit: 'contain'
+                    }}
+                    autoPlay
+                    preload="auto"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <img
+                    src={imageUrl}
+                    alt={caption || blogTitle || 'Expanded image'}
+                    className="object-contain cursor-pointer"
+                    style={{ 
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100vw',
+                      maxHeight: '100vh',
+                      objectFit: 'contain'
+                    }}
+                  />
+                )}
+                
+                {/* Image Counter and Keyboard Instructions */}
+                <div className="absolute bottom-6 left-0 right-0 flex flex-col items-center justify-center gap-2">
+                  <div className="bg-black bg-opacity-80 text-white px-4 py-1 rounded-full text-sm">
+                    {caption || `${blogTitle} - Image`}
+                  </div>
+                  <div className="bg-black bg-opacity-70 text-white text-xs px-4 py-1 rounded-full">
+                    Press Esc to close • Space for video play/pause
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 
