@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
   let params = [];
 
   if (active === 'true') {
-    query += ' WHERE isActive = 1';
+    query += ' WHERE isActive = true';
   }
 
   query += ' ORDER BY isBroker DESC, displayOrder ASC, lastName ASC';
@@ -29,7 +29,7 @@ router.get('/', (req, res) => {
 router.get('/:id', (req, res) => {
   const agentId = req.params.id;
 
-  db.get('SELECT * FROM agents WHERE id = ?', [agentId], (err, agent) => {
+  db.get('SELECT * FROM agents WHERE id = $1', [agentId], (err, agent) => {
     if (err) {
       console.error('Error fetching agent:', err);
       return res.status(500).json({ error: 'Failed to fetch agent' });
@@ -41,7 +41,7 @@ router.get('/:id', (req, res) => {
 
     // Get agent's properties count
     db.get(
-      'SELECT COUNT(*) as count FROM properties WHERE id IN (SELECT propertyId FROM property_inquiries WHERE agentId = ?)',
+      'SELECT COUNT(*) as count FROM properties WHERE id IN (SELECT propertyId FROM property_inquiries WHERE agentId = $1)',
       [agentId],
       (err, result) => {
         if (!err && result) {
@@ -56,7 +56,7 @@ router.get('/:id', (req, res) => {
 // Get broker (managing broker)
 router.get('/broker/info', (req, res) => {
   db.get(
-    'SELECT * FROM agents WHERE isBroker = 1 AND isActive = 1 LIMIT 1',
+    'SELECT * FROM agents WHERE isBroker = true AND isActive = true LIMIT 1',
     [],
     (err, broker) => {
       if (err) {

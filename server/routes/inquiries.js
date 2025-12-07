@@ -26,7 +26,7 @@ router.post('/', (req, res) => {
 
   if (token) {
     db.get(
-      `SELECT userId FROM user_sessions WHERE token = ? AND expiresAt > datetime('now')`,
+      `SELECT userId FROM user_sessions WHERE token = $1 AND expiresAt > CURRENT_TIMESTAMP`,
       [token],
       (err, session) => {
         if (!err && session) {
@@ -43,17 +43,20 @@ router.post('/', (req, res) => {
     db.run(
       `INSERT INTO property_inquiries 
        (propertyId, mlsNumber, firstName, lastName, email, phone, message, agentId, userId)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
       [propertyId, mlsNumber || null, firstName, lastName, email, phone || null, message || null, agentId || null, userId],
-      function(err) {
+      function(err, result) {
         if (err) {
           console.error('Error creating inquiry:', err);
           return res.status(500).json({ error: 'Failed to submit inquiry' });
         }
 
+        // Get inquiryId from result for PostgreSQL or use lastID for SQLite
+        const inquiryId = result && result.rows && result.rows[0] ? result.rows[0].id : this.lastID;
+
         res.json({
           success: true,
-          inquiryId: this.lastID,
+          inquiryId,
           message: 'Inquiry submitted successfully'
         });
       }
@@ -73,15 +76,18 @@ router.get('/', authenticate, (req, res) => {
     WHERE 1=1
   `;
   let params = [];
+  let paramCounter = 1;
 
   if (propertyId) {
-    query += ' AND i.propertyId = ?';
+    query += ` AND i.propertyId = $${paramCounter}`;
     params.push(propertyId);
+    paramCounter++;
   }
 
   if (agentId) {
-    query += ' AND i.agentId = ?';
+    query += ` AND i.agentId = $${paramCounter}`;
     params.push(agentId);
+    paramCounter++;
   }
 
   query += ' ORDER BY i.createdAt DESC';

@@ -32,8 +32,8 @@ router.get('/', (req, res) => {
   
   const query = `
     SELECT b.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -44,8 +44,8 @@ router.get('/', (req, res) => {
       FROM blog_images img
       WHERE img.blogId = b.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -57,7 +57,7 @@ router.get('/', (req, res) => {
       WHERE vid.blogId = b.id
       ORDER BY vid.displayOrder) as videos
     FROM blogs b
-    WHERE b.isPublished = 1
+    WHERE b.isPublished = true
     ORDER BY b.createdAt DESC
   `;
 
@@ -70,9 +70,10 @@ router.get('/', (req, res) => {
 
     const blogs = rows.map(row => ({
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
-      isPublished: row.isPublished === 1
+      images: row.images || [], // PostgreSQL returns json directly
+      videos: row.videos || [], // PostgreSQL returns json directly
+      // Handle both PostgreSQL boolean and SQLite integer
+      isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     }));
 
     res.json({ blogs });
@@ -90,8 +91,8 @@ router.get('/latest', (req, res) => {
 
   const query = `
     SELECT b.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -102,8 +103,8 @@ router.get('/latest', (req, res) => {
       FROM blog_images img
       WHERE img.blogId = b.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -115,9 +116,9 @@ router.get('/latest', (req, res) => {
       WHERE vid.blogId = b.id
       ORDER BY vid.displayOrder) as videos
     FROM blogs b
-    WHERE b.isPublished = 1
+    WHERE b.isPublished = true
     ORDER BY b.createdAt DESC
-    LIMIT ?
+    LIMIT $1
   `;
 
   db.all(query, [limit], (err, rows) => {
@@ -129,9 +130,10 @@ router.get('/latest', (req, res) => {
 
     const blogs = rows.map(row => ({
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
-      isPublished: row.isPublished === 1
+      images: row.images || [], // PostgreSQL returns json directly
+      videos: row.videos || [], // PostgreSQL returns json directly
+      // Handle both PostgreSQL boolean and SQLite integer
+      isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     }));
 
     res.json({ blogs });
@@ -149,8 +151,8 @@ router.get('/:id', (req, res) => {
 
   const query = `
     SELECT b.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -161,8 +163,8 @@ router.get('/:id', (req, res) => {
       FROM blog_images img
       WHERE img.blogId = b.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -174,7 +176,7 @@ router.get('/:id', (req, res) => {
       WHERE vid.blogId = b.id
       ORDER BY vid.displayOrder) as videos
     FROM blogs b
-    WHERE b.id = ? AND b.isPublished = 1
+    WHERE b.id = $1 AND b.isPublished = true
   `;
 
   db.get(query, [blogId], (err, row) => {
@@ -190,9 +192,10 @@ router.get('/:id', (req, res) => {
 
     const blog = {
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
-      isPublished: row.isPublished === 1
+      images: row.images || [], // PostgreSQL returns json directly
+      videos: row.videos || [], // PostgreSQL returns json directly
+      // Handle both PostgreSQL boolean and SQLite integer
+      isPublished: typeof row.isPublished === 'boolean' ? row.isPublished : row.isPublished === 1
     };
 
     res.json({ blog });

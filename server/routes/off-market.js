@@ -8,8 +8,8 @@ router.get('/', (req, res) => {
 
   let query = `
     SELECT d.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -20,8 +20,8 @@ router.get('/', (req, res) => {
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -33,23 +33,27 @@ router.get('/', (req, res) => {
       WHERE vid.dealId = d.id
       ORDER BY vid.displayOrder) as videos
     FROM off_market_deals d
-    WHERE d.isActive = 1
+    WHERE d.isActive = true
   `;
   let params = [];
+  let paramCounter = 1;
 
   if (propertyType && propertyType !== 'all') {
-    query += ' AND d.propertyType = ?';
+    query += ` AND d.propertyType = $${paramCounter}`;
     params.push(propertyType);
+    paramCounter++;
   }
 
   if (propertySubType && propertySubType !== 'all') {
-    query += ' AND d.propertySubType = ?';
+    query += ` AND d.propertySubType = $${paramCounter}`;
     params.push(propertySubType);
+    paramCounter++;
   }
 
   if (status && status !== 'all') {
-    query += ' AND d.status = ?';
+    query += ` AND d.status = $${paramCounter}`;
     params.push(status);
+    paramCounter++;
   }
 
   query += ' ORDER BY d.displayOrder ASC, d.createdAt DESC';
@@ -62,11 +66,12 @@ router.get('/', (req, res) => {
 
     const deals = rows.map(row => ({
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
+      images: row.images || [], // PostgreSQL returns json directly
+      videos: row.videos || [], // PostgreSQL returns json directly
       thumbnailUrl: row.thumbnailUrl || null,
       thumbnailType: row.thumbnailType || null,
-      isHotDeal: row.isHotDeal === 1
+      // Handle both PostgreSQL boolean and SQLite integer
+      isHotDeal: typeof row.isHotDeal === 'boolean' ? row.isHotDeal : row.isHotDeal === 1
     }));
 
     res.json({ deals });
@@ -79,8 +84,8 @@ router.get('/:id', (req, res) => {
 
   const query = `
     SELECT d.*,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', img.id,
           'imageUrl', img.imageUrl,
           'thumbnailUrl', img.thumbnailUrl,
@@ -91,8 +96,8 @@ router.get('/:id', (req, res) => {
       FROM off_market_deal_images img
       WHERE img.dealId = d.id
       ORDER BY img.displayOrder) as images,
-      (SELECT json_group_array(
-        json_object(
+      (SELECT json_agg(
+        json_build_object(
           'id', vid.id,
           'videoUrl', vid.videoUrl,
           'thumbnailUrl', vid.thumbnailUrl,
@@ -104,7 +109,7 @@ router.get('/:id', (req, res) => {
       WHERE vid.dealId = d.id
       ORDER BY vid.displayOrder) as videos
     FROM off_market_deals d
-    WHERE d.id = ? AND d.isActive = 1
+    WHERE d.id = $1 AND d.isActive = true
   `;
 
   db.get(query, [dealId], (err, row) => {
@@ -119,11 +124,12 @@ router.get('/:id', (req, res) => {
 
     const deal = {
       ...row,
-      images: row.images ? JSON.parse(row.images) : [],
-      videos: row.videos ? JSON.parse(row.videos) : [],
+      images: row.images || [], // PostgreSQL returns json directly
+      videos: row.videos || [], // PostgreSQL returns json directly
       thumbnailUrl: row.thumbnailUrl || null,
       thumbnailType: row.thumbnailType || null,
-      isHotDeal: row.isHotDeal === 1
+      // Handle both PostgreSQL boolean and SQLite integer
+      isHotDeal: typeof row.isHotDeal === 'boolean' ? row.isHotDeal : row.isHotDeal === 1
     };
 
     res.json({ deal });
