@@ -346,45 +346,21 @@ if (isProduction) {
   } catch (err) {
     console.error('Error initializing SQLite:', err.message);
   }
-      console.log('✅ Connected to SQLite database');
-    }
-  });
-
-  // Enable foreign keys and WAL mode for better performance
-  sqliteDb.run('PRAGMA foreign_keys = ON');
-  sqliteDb.run('PRAGMA journal_mode = WAL');
+} else {
+  // EMERGENCY FALLBACK - this should never happen in production
+  console.error('\n\n❌❌❌ NO DATABASE SELECTED - THIS IS A CRITICAL ERROR! ❌❌❌');
+  console.error('Database environment detection failed:');
+  console.error(`- NODE_ENV = ${process.env.NODE_ENV || 'not set'}`);
+  console.error(`- DATABASE_URL ${process.env.DATABASE_URL ? 'is set' : 'is NOT set'}`);
+  console.error('This might indicate a configuration error.');
+  console.error('For production, ensure DATABASE_URL is set.');
+  console.error('For development, ensure NODE_ENV is not "production".');
   
-  // Create promise wrappers for SQLite functions
+  // Create dummy DB that throws errors on all operations
   db = {
-    run: (query, params = []) => {
-      return new Promise((resolve, reject) => {
-        sqliteDb.run(query, params, function(err) {
-          if (err) return reject(err);
-          resolve({ changes: this.changes, lastID: this.lastID });
-        });
-      });
-    },
-    
-    get: (query, params = []) => {
-      return new Promise((resolve, reject) => {
-        sqliteDb.get(query, params, (err, row) => {
-          if (err) return reject(err);
-          resolve(row);
-        });
-      });
-    },
-    
-    all: (query, params = []) => {
-      return new Promise((resolve, reject) => {
-        sqliteDb.all(query, params, (err, rows) => {
-          if (err) return reject(err);
-          resolve(rows);
-        });
-      });
-    },
-    
-    // Keep reference to original SQLite database for compatibility
-    sqliteDb: sqliteDb
+    run: async () => { throw new Error('No database connection established'); },
+    get: async () => { throw new Error('No database connection established'); },
+    all: async () => { throw new Error('No database connection established'); }
   };
 }
 
