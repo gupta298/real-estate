@@ -19,19 +19,50 @@ if (isProduction) {
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    // Add connection timeout and retry logic
-    connectionTimeoutMillis: 10000,
-    query_timeout: 10000,
-    statement_timeout: 10000,
-    max: 10,
-    idleTimeoutMillis: 30000
+    // Add connection timeout and retry logic with increased timeouts
+    connectionTimeoutMillis: 30000,  // Increased from 10000ms to 30000ms
+    query_timeout: 30000,           // Increased from 10000ms to 30000ms
+    statement_timeout: 30000,       // Increased from 10000ms to 30000ms
+    max: 20,                        // Increased max connections from 10 to 20
+    idleTimeoutMillis: 60000        // Increased from 30000ms to 60000ms
   });
+  
+  // Helper function to retry operations with exponential backoff
+  const retryOperation = async (operation, maxRetries = 3, initialDelay = 500) => {
+    let lastError;
+    let retries = 0;
+    
+    while (retries < maxRetries) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        const isTimeout = error.message && error.message.includes('timeout');
+        
+        if (!isTimeout) {
+          // Don't retry non-timeout errors
+          throw error;
+        }
+        
+        retries++;
+        if (retries >= maxRetries) break;
+        
+        // Calculate delay with exponential backoff (500ms, 1000ms, 2000ms...)
+        const delay = initialDelay * Math.pow(2, retries - 1);
+        console.log(`⚠️ Query timeout. Retrying in ${delay}ms... (Attempt ${retries} of ${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    // If we get here, all retries failed
+    throw lastError;
+  };
   
   // Test connection immediately
   (async () => {
     try {
       const client = await pool.connect();
-      console.log('Successfully connected to PostgreSQL database!');
+      console.log('✅ Successfully connected to PostgreSQL database!');
       client.release();
     } catch (err) {
       console.error('❌ Error connecting to PostgreSQL:', err.message);
@@ -63,16 +94,30 @@ if (isProduction) {
         // Handle connection issues separately from query issues
         const client = await pool.connect();
         try {
-          const result = await client.query(pgQuery, params);
+          // Use retry operation for query execution
+          const result = await retryOperation(async () => {
+            console.log(`Executing query: ${pgQuery.substring(0, 100)}${pgQuery.length > 100 ? '...' : ''}`);
+            return await client.query(pgQuery, params);
+          }, 3, 1000); // retry up to 3 times, starting with 1 second delay
+          
           // Safely access result properties
           return { 
             changes: result && result.rowCount ? result.rowCount : 0, 
             ...result 
           };
         } catch (queryError) {
-          console.error('Database query error:', queryError);
-          console.error('Query was:', pgQuery);
-          console.error('Parameters were:', params);
+          // Enhanced error logging for timeouts
+          if (queryError.message && queryError.message.includes('timeout')) {
+            console.error('⏱️ DATABASE QUERY TIMEOUT ERROR - All retry attempts failed');
+            console.error('Query that timed out:', pgQuery);
+            console.error('Parameters:', params);
+            console.error('Timeout error details:', queryError.message);
+            console.error('Consider optimizing this query or increasing timeout limits further');
+          } else {
+            console.error('Database query error:', queryError);
+            console.error('Query was:', pgQuery);
+            console.error('Parameters were:', params);
+          }
           throw queryError;
         } finally {
           // Always release the client back to the pool
@@ -100,13 +145,26 @@ if (isProduction) {
         // Handle connection issues separately from query issues
         const client = await pool.connect();
         try {
-          const result = await client.query(pgQuery, params);
+          // Use retry operation for query execution
+          const result = await retryOperation(async () => {
+            return await client.query(pgQuery, params);
+          }, 3, 1000); // retry up to 3 times, starting with 1 second delay
+          
           // Safely access rows - might be undefined if query fails
           return result && result.rows ? result.rows[0] : null;
         } catch (queryError) {
-          console.error('Database query error:', queryError);
-          console.error('Query was:', pgQuery);
-          console.error('Parameters were:', params);
+          // Enhanced error logging for timeouts
+          if (queryError.message && queryError.message.includes('timeout')) {
+            console.error('⏱️ DATABASE QUERY TIMEOUT ERROR - All retry attempts failed');
+            console.error('Query that timed out:', pgQuery);
+            console.error('Parameters:', params);
+            console.error('Timeout error details:', queryError.message);
+            console.error('Consider optimizing this query or increasing timeout limits further');
+          } else {
+            console.error('Database query error:', queryError);
+            console.error('Query was:', pgQuery);
+            console.error('Parameters were:', params);
+          }
           throw queryError;
         } finally {
           // Always release the client back to the pool
@@ -134,13 +192,26 @@ if (isProduction) {
         // Handle connection issues separately from query issues
         const client = await pool.connect();
         try {
-          const result = await client.query(pgQuery, params);
+          // Use retry operation for query execution
+          const result = await retryOperation(async () => {
+            return await client.query(pgQuery, params);
+          }, 3, 1000); // retry up to 3 times, starting with 1 second delay
+          
           // Safely access rows - might be undefined if query fails
           return result && result.rows ? result.rows : [];
         } catch (queryError) {
-          console.error('Database query error:', queryError);
-          console.error('Query was:', pgQuery);
-          console.error('Parameters were:', params);
+          // Enhanced error logging for timeouts
+          if (queryError.message && queryError.message.includes('timeout')) {
+            console.error('⏱️ DATABASE QUERY TIMEOUT ERROR - All retry attempts failed');
+            console.error('Query that timed out:', pgQuery);
+            console.error('Parameters:', params);
+            console.error('Timeout error details:', queryError.message);
+            console.error('Consider optimizing this query or increasing timeout limits further');
+          } else {
+            console.error('Database query error:', queryError);
+            console.error('Query was:', pgQuery);
+            console.error('Parameters were:', params);
+          }
           throw queryError;
         } finally {
           // Always release the client back to the pool
