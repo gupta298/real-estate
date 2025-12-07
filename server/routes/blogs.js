@@ -216,7 +216,6 @@ router.get('/', async (req, res) => {
         SELECT * FROM blogs
         WHERE isPublished = true
         ORDER BY createdAt DESC
-        LIMIT 50
       `);
       const blogs = blogResult.rows;
       console.log(`⏱️ Blogs fetched in ${Date.now() - startTime}ms - Found ${blogs.length} blogs`);
