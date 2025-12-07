@@ -4,10 +4,15 @@ const nextConfig = {
   output: 'export',
   images: {
     unoptimized: true, // Disable image optimization for static export compatibility
-    domains: ['images.unsplash.com', 'via.placeholder.com', 'localhost'],
+    domains: ['images.unsplash.com', 'via.placeholder.com', 'localhost', 'real-estate-website-m0hb.onrender.com'],
+    // Add a catch-all pattern for any domain
     remotePatterns: [
       {
         protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
         hostname: '**',
       },
       {

@@ -227,11 +227,11 @@ export default function OffMarketDealDetailPage() {
                 </div>
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                  <Image
+                  <img
                     src={mediaItems[0].imageUrl || mediaItems[0].thumbnailUrl}
                     alt={deal.title}
-                    fill
-                    className="object-contain"
+                    className="object-contain max-w-full max-h-full"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                   />
                 </div>
               )}
@@ -308,12 +308,10 @@ export default function OffMarketDealDetailPage() {
                     </div>
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <Image
+                      <img
                         src={item.thumbnailUrl || item.imageUrl}
                         alt={`${deal.title} - ${item.type === 'video' ? 'Video' : 'Image'} ${index + 1}`}
-                        fill
-                        className="object-cover" /* Using object-cover for better thumbnail appearance */
-                        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
+                        className="object-cover w-full h-full" /* Using object-cover for better thumbnail appearance */
                       />
                     </div>
                   )}
@@ -468,12 +466,10 @@ export default function OffMarketDealDetailPage() {
                 </div>
               ) : (
                 <div className="image-container w-full h-full flex items-center justify-center" title="Click to advance to next image">
-                  <Image
+                  <img
                     src={mediaItems[selectedImageIndex].imageUrl || mediaItems[selectedImageIndex].thumbnailUrl}
                     alt={`${deal.title} - ${mediaItems[selectedImageIndex].type === 'video' ? 'Video' : 'Image'} ${selectedImageIndex + 1}`}
-                    fill
-                    className="object-contain cursor-pointer"
-                    priority={selectedImageIndex === 0} /* Prioritize loading the first image */
+                    className="object-contain cursor-pointer max-w-full max-h-[90vh]"
                   />
                 </div>
               )}
