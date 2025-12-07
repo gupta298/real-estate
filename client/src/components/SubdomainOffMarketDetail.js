@@ -377,12 +377,15 @@ export default function SubdomainOffMarketDetail({ id }) {
                   </video>
                 ) : (
                   <>
-                    <img 
-                      src={mediaItems[currentSlideIndex].url}
-                      alt={`Image ${currentSlideIndex + 1} for ${deal.title}`}
-                      className="max-w-full max-h-full object-contain"
-                      style={{ width: 'auto', height: 'auto', maxHeight: '100%' }}
-                    />
+                    <div className="relative w-full h-full">
+                      <Image 
+                        src={mediaItems[currentSlideIndex].url || '/placeholder-property.jpg'}
+                        alt={`Image ${currentSlideIndex + 1} for ${deal.title}`}
+                        fill
+                        className="object-contain"
+                        unoptimized={true}
+                      />
+                    </div>
                     {/* Hover overlay with zoom icon */}
                     <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
                       <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -451,11 +454,15 @@ export default function SubdomainOffMarketDetail({ id }) {
                     {item.type === 'video' ? (
                       <div className="w-full h-full bg-gray-100 relative">
                         {/* Video Thumbnail */}
-                        <img 
-                          src={item.thumbnailUrl || '/placeholder-property.jpg'}
-                          alt={`Video thumbnail ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
+                        <div className="relative w-full h-full">
+                          <Image 
+                            src={item.thumbnailUrl || '/placeholder-property.jpg'}
+                            alt={`Video thumbnail ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized={true}
+                          />
+                        </div>
                         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
                           <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path d="M8 5v14l11-7z"></path>
@@ -463,11 +470,15 @@ export default function SubdomainOffMarketDetail({ id }) {
                         </div>
                       </div>
                     ) : (
-                      <img 
-                        src={item.url}
-                        alt={`Thumbnail ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="relative w-full h-full">
+                        <Image 
+                          src={item.url || '/placeholder-property.jpg'}
+                          alt={`Thumbnail ${index + 1}`}
+                          fill
+                          className="object-cover"
+                          unoptimized={true}
+                        />
+                      </div>
                     )}
                   </div>
                 ))}
@@ -579,18 +590,16 @@ export default function SubdomainOffMarketDetail({ id }) {
                   </video>
                 </div>
               ) : (
-                <img
-                  src={mediaItems[currentSlideIndex].url}
-                  alt={`${deal.title} - Image ${currentSlideIndex + 1}`}
-                  className="object-contain cursor-pointer"
-                  style={{ 
-                    width: 'auto',
-                    height: 'auto',
-                    maxWidth: '100vw',
-                    maxHeight: '100vh',
-                    objectFit: 'contain'
-                  }} // Full screen sizing
-                />
+                <div className="relative h-full w-full">
+                  <Image
+                    src={mediaItems[currentSlideIndex].url || '/placeholder-property.jpg'}
+                    alt={`${deal.title} - Image ${currentSlideIndex + 1}`}
+                    fill
+                    className="object-contain cursor-pointer"
+                    onClick={nextImage} /* Click to navigate forward */
+                    unoptimized={true}
+                  />
+                </div>
               )}
             </div>
 
@@ -635,11 +644,15 @@ export default function SubdomainOffMarketDetail({ id }) {
                     {item.type === 'video' ? (
                       <div className="w-full h-full bg-black flex items-center justify-center">
                         {/* Video Preview Thumbnail */}
-                        <img 
-                          src={item.thumbnailUrl || '/placeholder-property.jpg'}
-                          alt={`Video thumbnail ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
+                        <div className="relative w-full h-full">
+                          <Image 
+                            src={item.thumbnailUrl || '/placeholder-property.jpg'}
+                            alt={`Video thumbnail ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            unoptimized={true}
+                          />
+                        </div>
                         {/* Video Icon */}
                         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
                           <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -648,11 +661,15 @@ export default function SubdomainOffMarketDetail({ id }) {
                         </div>
                       </div>
                     ) : (
-                      <img
-                        src={item.url}
-                        alt={`Thumbnail ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="relative w-full h-full">
+                        <Image
+                          src={item.url || '/placeholder-property.jpg'}
+                          alt={`Thumbnail ${index + 1}`}
+                          fill
+                          className="object-cover"
+                          unoptimized={true}
+                        />
+                      </div>
                     )}
                     <div className="absolute bottom-0 right-0 bg-black bg-opacity-60 text-white text-xs px-1">
                       {index + 1}

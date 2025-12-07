@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { getOffMarketDeals } from '@/utils/api';
 import { isSubdomain } from '@/utils/subdomainRouting';
+import Image from 'next/image';
 import Link from 'next/link';
 import { FiMapPin, FiHome, FiBriefcase, FiChevronDown, FiX } from 'react-icons/fi';
 
@@ -752,11 +753,13 @@ export default function OffMarketSimplePage() {
                                       </video>
                                     </div>
                                   ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                      <img
-                                        src={item.imageUrl || item.thumbnailUrl}
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-100 relative">
+                                      <Image
+                                        src={item.imageUrl || item.thumbnailUrl || '/placeholder-property.jpg'}
                                         alt={item.caption || deal.title || `Image ${index + 1}`}
-                                        className="h-full w-full object-cover"
+                                        fill
+                                        className="object-cover"
+                                        unoptimized={true}
                                       />
                                     </div>
                                   )}

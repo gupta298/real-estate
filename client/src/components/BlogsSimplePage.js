@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { getBlogs } from '@/utils/api';
 import { isSubdomain } from '@/utils/subdomainRouting';
 import { FiX } from 'react-icons/fi';
+import Image from 'next/image';
 
 /**
  * Simple blog listing page with proper styling but minimal React dependencies
@@ -590,19 +591,22 @@ export default function BlogsSimplePage() {
                                       </video>
                                     </div>
                                   ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                      <img 
-                                        src={imageUrl} 
-                                        alt={caption || blogTitle || `Blog Image`} 
-                                        className="object-contain cursor-pointer"  
-                                        style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
-                                        onClick={isBrowser ? (e => {
-                                          if (e && typeof e.stopPropagation === 'function') {
-                                            e.stopPropagation();
-                                          }
-                                          openLightbox(item, blogTitle, e, allMedia);
-                                        }) : undefined}
-                                      />
+                                    <div className="w-full h-full flex items-center justify-center bg-gray-100 relative">
+                                      <div className="absolute inset-0">
+                                        <Image 
+                                          src={imageUrl || '/placeholder-property.jpg'} 
+                                          alt={caption || blogTitle || `Blog Image`} 
+                                          fill
+                                          className="object-contain cursor-pointer"  
+                                          onClick={isBrowser ? (e => {
+                                            if (e && typeof e.stopPropagation === 'function') {
+                                              e.stopPropagation();
+                                            }
+                                            openLightbox(item, blogTitle, e, allMedia);
+                                          }) : undefined}
+                                          unoptimized={true}
+                                        />
+                                      </div>
                                     </div>
                                   )}
                                 </div>
@@ -794,20 +798,17 @@ export default function BlogsSimplePage() {
                     Your browser does not support the video tag.
                   </video>
                 ) : (
-                  <img
-                    key={imageUrl} /* Key helps React re-render when source changes */
-                    src={imageUrl}
-                    alt={caption || blogTitle || 'Expanded image'}
-                    className="object-contain cursor-pointer"
-                    style={{ 
-                      width: 'auto',
-                      height: 'auto',
-                      maxWidth: '100vw',
-                      maxHeight: '100vh',
-                      objectFit: 'contain'
-                    }}
-                    onClick={goToNext} /* Click image to go to next */
-                  />
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <Image
+                      key={imageUrl} /* Key helps React re-render when source changes */
+                      src={imageUrl || '/placeholder-property.jpg'}
+                      alt={caption || blogTitle || 'Expanded image'}
+                      fill
+                      className="object-contain cursor-pointer"
+                      unoptimized={true}
+                      onClick={goToNext} /* Click image to go to next */
+                    />
+                  </div>
                 )}
                 
                 {/* Image Counter and Keyboard Instructions */}
