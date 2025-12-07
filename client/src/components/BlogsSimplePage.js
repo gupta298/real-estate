@@ -19,14 +19,11 @@ export default function BlogsSimplePage() {
     displayCount: 12 // For infinite scrolling, similar to main page
   });
   
-  // Check if we're on a subdomain
-  const isOnSubdomain = isSubdomain('blog');
-  
-  // Create a ref for infinite scrolling observer
+  // Create refs outside of render phase to avoid hydration issues
   const loadMoreRef = useRef(null);
-
-  // Ref for storing interval ID safely within React's lifecycle
   const slideshowIntervalRef = useRef(null);
+  const previousFocusRef = useRef(null);
+  const closeButtonRef = useRef(null);
   
   // Set up slideshow for images - only runs in browser context
   function setupSlideshow() {
@@ -113,21 +110,28 @@ export default function BlogsSimplePage() {
     }
   }
 
+  // Separate useEffect for client-side only code to fix hydration issues
+  useEffect(() => {
+    // This runs only on client-side after hydration is complete
+    if (typeof window === 'undefined') return;
+    
+    // Check if in iframe
+    setState(prev => ({
+      ...prev,
+      isInIframe: window.self !== window.top
+    }));
+  }, []);
+  
+  // Data fetching effect
   useEffect(() => {
     // Flag to track component mount state
     let isActive = true;
     
-    // Check if in iframe
-    if (typeof window !== 'undefined') {
-      setState(prev => ({
-        ...prev,
-        isInIframe: window.self !== window.top
-      }));
-    }
-    
     // Load blogs on component mount
     async function loadBlogs() {
       try {
+        if (typeof window === 'undefined') return; // Skip during SSR
+        
         console.log('Loading blogs via explicit API path...');
         const data = await getBlogs();
         console.log('Blog data received:', data);
@@ -170,74 +174,91 @@ export default function BlogsSimplePage() {
   
   // Setup slideshow and DOM event handlers in a separate useEffect that only runs on client
   useEffect(() => {
-    // Skip if not in browser
+    // Skip if not in browser - ensures this only runs client-side after hydration
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
-    // Set up slideshow once data is loaded
-    if (!state.loading && state.blogs.length > 0) {
-      setupSlideshow();
-    }
-    
-    // Add visibility change listener
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Use a small timeout to ensure hydration is complete before modifying the DOM
+    const timerId = setTimeout(() => {
+      // Set up slideshow once data is loaded
+      if (!state.loading && state.blogs.length > 0) {
+        setupSlideshow();
+      }
+      
+      // Add visibility change listener
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }, 0);
     
     // Cleanup function
     return () => {
+      clearTimeout(timerId);
       // Clear the interval using the ref
       if (slideshowIntervalRef.current) {
         clearInterval(slideshowIntervalRef.current);
         slideshowIntervalRef.current = null;
       }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
+      }
     };
   }, [state.loading, state.blogs.length]);
 
-  // Handle keyboard events for lightbox navigation
+  // Handle keyboard events for lightbox navigation - only runs client-side
   useEffect(() => {
-    if (!lightboxImages || typeof window === 'undefined') return;
+    // Skip during server-side rendering
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
-    const handleKeyboardNavigation = (e) => {
-      if (e.key === 'Escape') {
-        closeLightbox();
-      } else if (e.key === 'Tab') {
-        // Handle focus trap inside lightbox
-        const lightbox = document.querySelector('[role="dialog"]');
-        if (!lightbox) return;
-        
-        const focusableElements = lightbox.querySelectorAll(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
-        
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
-        
-        if (e.shiftKey && document.activeElement === firstElement) {
-          lastElement.focus();
-          e.preventDefault();
-        } else if (!e.shiftKey && document.activeElement === lastElement) {
-          firstElement.focus();
-          e.preventDefault();
-        }
-      } else if (e.key === ' ' || e.key === 'Enter') {
-        // Space or Enter toggles play/pause for videos
-        const activeVideo = document.querySelector('.lightbox-media video');
-        if (activeVideo) {
-          if (activeVideo.paused) {
-            activeVideo.play().catch(() => {});
-          } else {
-            activeVideo.pause();
+    // Only add keyboard handlers when lightbox is open
+    if (!lightboxImages) return;
+    
+    // Use a timeout to ensure hydration is complete
+    const timerId = setTimeout(() => {
+      const handleKeyboardNavigation = (e) => {
+        if (e.key === 'Escape') {
+          closeLightbox();
+        } else if (e.key === 'Tab') {
+          // Handle focus trap inside lightbox
+          const lightbox = document.querySelector('[role="dialog"]');
+          if (!lightbox) return;
+          
+          const focusableElements = lightbox.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          
+          if (focusableElements.length === 0) return;
+          
+          const firstElement = focusableElements[0];
+          const lastElement = focusableElements[focusableElements.length - 1];
+          
+          if (e.shiftKey && document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          } else if (!e.shiftKey && document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
           }
-          e.preventDefault();
+        } else if (e.key === ' ' || e.key === 'Enter') {
+          // Space or Enter toggles play/pause for videos
+          const activeVideo = document.querySelector('.lightbox-media video');
+          if (activeVideo) {
+            if (activeVideo.paused) {
+              activeVideo.play().catch(() => {});
+            } else {
+              activeVideo.pause();
+            }
+            e.preventDefault();
+          }
         }
-      }
-    };
+      };
+      
+      window.addEventListener('keydown', handleKeyboardNavigation);
+      return () => window.removeEventListener('keydown', handleKeyboardNavigation);
+    }, 0);
     
-    window.addEventListener('keydown', handleKeyboardNavigation);
-    return () => window.removeEventListener('keydown', handleKeyboardNavigation);
+    return () => clearTimeout(timerId);
   }, [lightboxImages]);
   
-  // Infinite scroll observer effect (similar to main page)
+  // Infinite scroll observer effect - separated to prevent hydration mismatch
   useEffect(() => {
     // Skip if not in browser
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -248,33 +269,38 @@ export default function BlogsSimplePage() {
     // Create observer only if IntersectionObserver is available (client-side)
     if (!('IntersectionObserver' in window)) return;
     
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const firstEntry = entries[0];
-        if (firstEntry?.isIntersecting && state.displayCount < state.blogs.length) {
-          // Load 12 more blogs
-          setState(prev => ({
-            ...prev,
-            displayCount: Math.min(prev.displayCount + 12, state.blogs.length)
-          }));
+    // Use a timeout to ensure hydration is complete before attaching observers
+    const timerId = setTimeout(() => {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          const firstEntry = entries[0];
+          if (firstEntry?.isIntersecting && state.displayCount < state.blogs.length) {
+            // Load 12 more blogs
+            setState(prev => ({
+              ...prev,
+              displayCount: Math.min(prev.displayCount + 12, state.blogs.length)
+            }));
+          }
+        },
+        {
+          threshold: 0.1,
+          rootMargin: '200px' // Start loading before reaching the bottom
         }
-      },
-      {
-        threshold: 0.1,
-        rootMargin: '200px' // Start loading before reaching the bottom
+      );
+  
+      const currentRef = loadMoreRef.current;
+      if (currentRef) {
+        observer.observe(currentRef);
       }
-    );
-
-    const currentRef = loadMoreRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef && observer) {
-        observer.unobserve(currentRef);
-      }
-    };
+  
+      return () => {
+        if (currentRef && observer) {
+          observer.unobserve(currentRef);
+        }
+      };
+    }, 10); // Small delay to ensure hydration is complete
+    
+    return () => clearTimeout(timerId);
   }, [state.displayCount, state.blogs.length]);
   
   // Format date for display
@@ -304,32 +330,32 @@ export default function BlogsSimplePage() {
     }));
   }
 
-  // Reference to store previously focused element
-  const previousFocusRef = useRef(null);
+  // References moved to top of component
   
-  // Lightbox close button ref for auto-focusing
-  const closeButtonRef = useRef(null);
-  
-  // Open lightbox for image
+  // Open lightbox for image - safe for server rendering
   function openLightbox(image, blogTitle, e) {
+    // Skip DOM operations during server rendering
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     
     // Store current active element to restore focus later
-    if (typeof document !== 'undefined') {
-      previousFocusRef.current = document.activeElement;
-    }
+    previousFocusRef.current = document.activeElement;
     
-    setState(prev => ({
-      ...prev,
-      lightboxImages: { image, blogTitle }
-    }));
-    
-    // Prevent scrolling when lightbox is open
-    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
-      document.body.style.overflow = 'hidden';
+    // Update state in a separate microtask to avoid hydration issues
+    Promise.resolve().then(() => {
+      setState(prev => ({
+        ...prev,
+        lightboxImages: { image, blogTitle }
+      }));
+      
+      // Prevent scrolling when lightbox is open
+      if (document.body) {
+        document.body.style.overflow = 'hidden';
+      }
       
       // Focus close button after a short delay to ensure it's rendered
       setTimeout(() => {
@@ -337,29 +363,33 @@ export default function BlogsSimplePage() {
           closeButtonRef.current.focus();
         }
       }, 50);
-    }
+    });
   }
 
-  // Close lightbox
+  // Close lightbox - safe for server rendering
   function closeLightbox() {
+    // Skip DOM operations during server rendering
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+    
     // Pause all videos when closing
-    if (typeof document !== 'undefined') {
-      const videos = document.querySelectorAll('video');
-      if (videos) {
-        videos.forEach(video => {
-          if (video && typeof video.pause === 'function') video.pause();
-        });
-      }
+    const videos = document.querySelectorAll('video');
+    if (videos && videos.length > 0) {
+      videos.forEach(video => {
+        if (video && typeof video.pause === 'function') video.pause();
+      });
     }
     
-    setState(prev => ({
-      ...prev,
-      lightboxImages: null
-    }));
-    
-    // Restore scrolling
-    if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
-      document.body.style.overflow = 'unset';
+    // Update state in a separate microtask to avoid hydration issues
+    Promise.resolve().then(() => {
+      setState(prev => ({
+        ...prev,
+        lightboxImages: null
+      }));
+      
+      // Restore scrolling
+      if (document.body) {
+        document.body.style.overflow = 'unset';
+      }
       
       // Restore focus to previous element
       setTimeout(() => {
@@ -367,7 +397,7 @@ export default function BlogsSimplePage() {
           previousFocusRef.current.focus();
         }
       }, 50);
-    }
+    });
   }
   
   // Custom CSS for blog content
@@ -446,9 +476,40 @@ export default function BlogsSimplePage() {
     }
   `;
   
-  // Destructure state for easier access
-  const { blogs, loading, error, isInIframe, expandedBlogs, lightboxImages, displayCount } = state;
+  // Destructure state for easier access, avoiding potential issues with optional chaining in SSR
+  const blogs = state.blogs || [];
+  const loading = state.loading;
+  const error = state.error;
+  const isInIframe = state.isInIframe;
+  const expandedBlogs = state.expandedBlogs || {};
+  const lightboxImages = state.lightboxImages;
+  const displayCount = state.displayCount || 12;
   
+  // Use this flag to safely determine if we're running in the browser
+  const isBrowser = typeof window !== 'undefined';
+  
+  // For the initial server-side render, we want to show a minimal loading state
+  // This prevents hydration mismatches and React errors 418/423
+  if (!isBrowser) {
+    return (
+      <div className="bg-gray-50 min-h-screen py-8">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold text-bf-blue mb-4">Blog</h1>
+            <p className="text-lg text-gray-600">
+              Latest news, insights, and updates from Blue Flag Realty
+            </p>
+          </div>
+          <div className="text-center py-12">
+            <div className="inline-block h-12 w-12"></div>
+            <p className="mt-4 text-gray-600">Loading blog posts...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // Client-side render with full interactivity
   return (
     <div className="bg-gray-50 min-h-screen py-8">
       {/* Add custom CSS */}
@@ -467,7 +528,7 @@ export default function BlogsSimplePage() {
           <div className="bg-gray-100 p-4 mb-6 rounded-lg text-xs">
             <p><strong>Debug Info:</strong></p>
             <p>Subdomain: {isInIframe ? 'In iframe' : 'Not in iframe'}</p>
-            <p>URL: {typeof window !== 'undefined' ? window.location.href : 'SSR'}</p>
+            <p>URL: {window.location.href}</p>
             <p>Simple version with minimal React hooks</p>
           </div>
         )}

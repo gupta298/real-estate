@@ -25,7 +25,7 @@
     "production:setup": "npm run setup:env && npm install && cd server && npm install && cd ../client && npm install --include=dev",
     "production:build": "npm run production:setup && npm run build",
     "production:start": "cd server && NODE_ENV=production npm start",
-    "production:deploy": "NODE_ENV=production node ./scripts/production-start.js",
+    "production:deploy": "FORCE_SEED=true NODE_ENV=production node ./scripts/production-start.js",
     "production:deploy:fresh": "FORCE_SEED=true NODE_ENV=production node ./scripts/production-start.js",
     "migrate-seed-all": "cd server && npm run migrate-all"
   },
