@@ -21,80 +21,8 @@ export default function BlogsSimplePage() {
   
   // Create refs outside of render phase to avoid hydration issues
   const loadMoreRef = useRef(null);
-  const slideshowIntervalRef = useRef(null);
   const previousFocusRef = useRef(null);
   const closeButtonRef = useRef(null);
-  
-  // Set up slideshow for images - only runs in browser context
-  function setupSlideshow() {
-    // Skip if not in browser
-    if (typeof window === 'undefined' || typeof document === 'undefined') return;
-    
-    // Clear any existing interval
-    if (slideshowIntervalRef.current) {
-      clearInterval(slideshowIntervalRef.current);
-      slideshowIntervalRef.current = null;
-    }
-    
-    // Create slideshow interval - advance slides every 5 seconds
-    const intervalId = setInterval(() => {
-      try {
-        // Don't advance slides if a video is playing
-        const anyVideoPlaying = document.querySelector('video')?.paused === false;
-        if (anyVideoPlaying) return;
-        
-        // Get all slideshow containers
-        const slideshows = document.querySelectorAll('.swiper-wrapper');
-        if (!slideshows || slideshows.length === 0) return;
-        
-        slideshows.forEach(slideshow => {
-          if (!slideshow) return;
-          const slides = slideshow.querySelectorAll('.swiper-slide');
-          if (!slides || slides.length <= 1) return; // Skip if only one slide
-          
-          // Find active slide
-          let activeIndex = -1;
-          slides.forEach((slide, index) => {
-            if (!slide) return;
-            if (slide.classList?.contains('swiper-slide-active')) {
-              activeIndex = index;
-            }
-          });
-          
-          if (activeIndex === -1) activeIndex = 0;
-          
-          // Move to next slide
-          const nextIndex = (activeIndex + 1) % slides.length;
-          slides.forEach(s => {
-            if (s && s.classList) s.classList.remove('swiper-slide-active');
-          });
-          
-          if (slides[nextIndex] && slides[nextIndex].classList) {
-            slides[nextIndex].classList.add('swiper-slide-active');
-          }
-          
-          // Update pagination bullets
-          const paginationContainer = slideshow.closest('.swiper-horizontal')?.querySelector('.swiper-pagination');
-          if (paginationContainer) {
-            const bullets = paginationContainer.querySelectorAll('.swiper-pagination-bullet');
-            if (bullets && bullets.length) {
-              bullets.forEach(b => {
-                if (b && b.classList) b.classList.remove('swiper-pagination-bullet-active');
-              });
-              if (bullets[nextIndex] && bullets[nextIndex].classList) {
-                bullets[nextIndex].classList.add('swiper-pagination-bullet-active');
-              }
-            }
-          }
-        });
-      } catch (e) {
-        console.error('Error in slideshow:', e);
-      }
-    }, 5000); // Change slide every 5 seconds
-    
-    // Store the interval ID in the ref
-    slideshowIntervalRef.current = intervalId;
-  }
   
   // Handle video play/pause when user navigates away
   function handleVisibilityChange() {
@@ -172,36 +100,22 @@ export default function BlogsSimplePage() {
     };
   }, []);
   
-  // Setup slideshow and DOM event handlers in a separate useEffect that only runs on client
+  // Setup visibility change handlers in a separate useEffect that only runs on client
   useEffect(() => {
     // Skip if not in browser - ensures this only runs client-side after hydration
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
-    // Use a small timeout to ensure hydration is complete before modifying the DOM
-    const timerId = setTimeout(() => {
-      // Set up slideshow once data is loaded
-      if (!state.loading && state.blogs.length > 0) {
-        setupSlideshow();
-      }
-      
-      // Add visibility change listener
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    }, 0);
+    // Add visibility change listener
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     // Cleanup function
     return () => {
-      clearTimeout(timerId);
-      // Clear the interval using the ref
-      if (slideshowIntervalRef.current) {
-        clearInterval(slideshowIntervalRef.current);
-        slideshowIntervalRef.current = null;
-      }
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         if (document.body) document.body.style.overflow = 'unset'; // Ensure scrolling is restored on unmount
       }
     };
-  }, [state.loading, state.blogs.length]);
+  }, []);
 
   // Handle keyboard events for lightbox navigation - only runs client-side
   useEffect(() => {
@@ -434,45 +348,10 @@ export default function BlogsSimplePage() {
       margin-bottom: 1rem;
     }
     
-    .swiper-pagination {
-      position: absolute;
-      text-align: center;
-      transition: opacity 0.3s;
-      transform: translateZ(0);
-      z-index: 10;
-      bottom: 8px;
-      left: 0;
-      width: 100%;
-    }
-    
-    .swiper-pagination-bullet {
-      width: 8px;
-      height: 8px;
-      display: inline-block;
-      border-radius: 50%;
-      background: #000;
-      opacity: 0.2;
-      margin: 0 4px;
-    }
-    
-    .swiper-pagination-bullet-active {
-      opacity: 1;
-      background: var(--swiper-theme-color,#007aff);
-    }
-    
-    .swiper-slide {
-      flex-shrink: 0;
+    .static-gallery {
+      position: relative;
       width: 100%;
       height: 100%;
-      position: relative;
-      transition-property: transform;
-      display: block;
-      opacity: 0;
-      transition: opacity 0.3s ease;
-    }
-    
-    .swiper-slide-active {
-      opacity: 1;
     }
   `;
   
@@ -614,61 +493,54 @@ export default function BlogsSimplePage() {
                           <span>Click on image/video to view in fullscreen</span>
                         </div>
                         <div className="relative h-64 w-full">
-                          <div className="swiper swiper-initialized swiper-horizontal h-full w-full swiper-backface-hidden">
-                            <div className="swiper-wrapper">
-                              {allMedia.map((item, index) => (
-                                <div key={`${blog.id}-preview-${index}`} className={`swiper-slide ${index === 0 ? 'swiper-slide-active' : ''}`} style={{ width: '100%' }}>
-                                  <div className="relative h-64 w-full bg-black">
-                                    {item.type === 'video' ? (
-                                      <div 
-                                        className="w-full h-full flex items-center justify-center"
-                                        onClick={e => {
-                                          e.stopPropagation();
-                                          openLightbox(item, blog.title, e);
-                                        }}
-                                      >
-                                        <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
-                                          <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
-                                          </svg>
-                                        </div>
-                                        <video 
-                                          src={item.videoUrl}
-                                          className="w-full h-full object-contain"
-                                          style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
-                                          muted
-                                          loop
-                                          playsInline
-                                          autoPlay
-                                          preload="auto"
-                                          onClick={e => e.stopPropagation()}
-                                        >
-                                          Your browser does not support the video tag.
-                                        </video>
-                                      </div>
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                                        <img 
-                                          src={item.imageUrl || item.thumbnailUrl} 
-                                          alt={item.caption || blog.title || `Image ${index + 1}`} 
-                                          className="object-contain cursor-pointer"  
-                                          style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
-                                          onClick={e => {
-                                            e.stopPropagation();
-                                            openLightbox(item, blog.title, e);
-                                          }}
-                                        />
-                                      </div>
-                                    )}
+                          <div className="static-gallery h-full w-full">
+                            {/* Show only the first media item (thumbnail) */}
+                            {allMedia.length > 0 && (
+                              <div className="relative h-64 w-full bg-black">
+                                {allMedia[0].type === 'video' ? (
+                                  <div 
+                                    className="w-full h-full flex items-center justify-center"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      openLightbox(allMedia[0], blog.title, e);
+                                    }}
+                                  >
+                                    <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity duration-300 z-10">
+                                      <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path>
+                                      </svg>
+                                    </div>
+                                    <video 
+                                      src={allMedia[0].videoUrl}
+                                      className="w-full h-full object-contain"
+                                      style={{ maxWidth: '100%', maxHeight: '100%', position: 'absolute', inset: 0 }}
+                                      muted
+                                      playsInline
+                                      preload="auto"
+                                      onClick={e => e.stopPropagation()}
+                                    >
+                                      Your browser does not support the video tag.
+                                    </video>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                                    <img 
+                                      src={allMedia[0].imageUrl || allMedia[0].thumbnailUrl} 
+                                      alt={allMedia[0].caption || blog.title || `Blog Image`} 
+                                      className="object-contain cursor-pointer"  
+                                      style={{ position: 'absolute', height: '100%', width: '100%', inset: 0 }}
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        openLightbox(allMedia[0], blog.title, e);
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             {allMedia.length > 1 && (
-                              <div className="swiper-pagination swiper-pagination-clickable swiper-pagination-bullets swiper-pagination-horizontal">
-                                {allMedia.map((_, index) => (
-                                  <span key={index} className={`swiper-pagination-bullet ${index === 0 ? 'swiper-pagination-bullet-active' : ''}`}></span>
-                                ))}
+                              <div className="mt-2 text-center">
+                                <span className="text-xs text-gray-500">Click to view all {allMedia.length} media</span>
                               </div>
                             )}
                           </div>
