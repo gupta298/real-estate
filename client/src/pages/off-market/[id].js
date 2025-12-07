@@ -99,12 +99,19 @@ export default function OffMarketDealDetailPage() {
   }, [isLightboxOpen, mediaItems.length]);
 
   const formatContent = (content) => {
-    return content.split('\n').map((line, i) => (
-      <span key={i}>
-        {line}
-        {i < content.split('\n').length - 1 && <br />}
-      </span>
-    ));
+    // Check if the content already has HTML tags
+    if (content.includes('<p>') || content.includes('<div>')) {
+      // Return content as HTML using dangerouslySetInnerHTML
+      return <div dangerouslySetInnerHTML={{ __html: content }} />;
+    } else {
+      // Use the existing newline-to-br conversion for plain text
+      return content.split('\n').map((line, i) => (
+        <span key={i}>
+          {line}
+          {i < content.split('\n').length - 1 && <br />}
+        </span>
+      ));
+    }
   };
 
   // Use the simplified component when in iframe or on subdomain
