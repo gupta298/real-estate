@@ -151,6 +151,38 @@ export default function BlogsSimplePage() {
             firstElement.focus();
             e.preventDefault();
           }
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          // Navigate to next image
+          if (Array.isArray(state.lightboxImages.allMedia) && state.lightboxImages.allMedia.length > 1) {
+            const currentIndex = state.lightboxImages.currentIndex || 0;
+            const nextIndex = (currentIndex + 1) % state.lightboxImages.allMedia.length;
+            
+            setState(prev => ({
+              ...prev,
+              lightboxImages: {
+                ...prev.lightboxImages,
+                currentIndex: nextIndex
+              }
+            }));
+            
+            e.preventDefault();
+          }
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          // Navigate to previous image
+          if (Array.isArray(state.lightboxImages.allMedia) && state.lightboxImages.allMedia.length > 1) {
+            const currentIndex = state.lightboxImages.currentIndex || 0;
+            const prevIndex = (currentIndex - 1 + state.lightboxImages.allMedia.length) % state.lightboxImages.allMedia.length;
+            
+            setState(prev => ({
+              ...prev,
+              lightboxImages: {
+                ...prev.lightboxImages,
+                currentIndex: prevIndex
+              }
+            }));
+            
+            e.preventDefault();
+          }
         } else if (e.key === ' ' || e.key === 'Enter') {
           // Space or Enter toggles play/pause for videos
           const activeVideo = document.querySelector('.lightbox-media video');
@@ -246,8 +278,8 @@ export default function BlogsSimplePage() {
 
   // References moved to top of component
   
-  // Open lightbox for image - safe for server rendering with better property handling
-  function openLightbox(image, blogTitle, e) {
+  // Open lightbox for image - showing all media not just the clicked one
+  function openLightbox(image, blogTitle, e, allMediaItems) {
     // Skip DOM operations during server rendering
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
     
@@ -259,6 +291,21 @@ export default function BlogsSimplePage() {
     // Ensure we have valid data
     const safeImage = image || {};
     const safeBlogTitle = blogTitle || 'Blog Image';
+    const allMedia = Array.isArray(allMediaItems) ? allMediaItems : [safeImage];
+    
+    // Find the current index of the clicked media in the array
+    let currentIndex = 0;
+    if (allMedia.length > 1) {
+      currentIndex = allMedia.findIndex(item => {
+        if (item.type === 'video' && safeImage.type === 'video') {
+          return item.videoUrl === safeImage.videoUrl;
+        } else {
+          return (item.imageUrl === safeImage.imageUrl) || 
+                 (item.thumbnailUrl === safeImage.thumbnailUrl);
+        }
+      });
+      if (currentIndex < 0) currentIndex = 0;
+    }
     
     // Store current active element to restore focus later
     previousFocusRef.current = document.activeElement;
@@ -275,7 +322,9 @@ export default function BlogsSimplePage() {
             videoUrl: safeImage.videoUrl || '',
             caption: safeImage.caption || ''
           }, 
-          blogTitle: safeBlogTitle
+          blogTitle: safeBlogTitle,
+          allMedia: allMedia,
+          currentIndex: currentIndex
         }
       }));
       
@@ -310,7 +359,7 @@ export default function BlogsSimplePage() {
     Promise.resolve().then(() => {
       setState(prev => ({
         ...prev,
-        lightboxImages: null
+        lightboxImages: null // Clear all lightbox state including allMedia and currentIndex
       }));
       
       // Restore scrolling
@@ -493,10 +542,6 @@ export default function BlogsSimplePage() {
                     
                     return (
                       <div className="relative cursor-pointer" onClick={() => toggleBlogExpansion(blog.id)}>
-                        {/* Hint message */}
-                        <div className="text-center text-xs text-gray-500 mb-1">
-                          <span>Click on image/video to view in fullscreen</span>
-                        </div>
                         <div className="relative h-64 w-full">
                           <div className="static-gallery h-full w-full">
                             {/* Show only the first media item (thumbnail) with safe property access */}
@@ -519,7 +564,7 @@ export default function BlogsSimplePage() {
                                           e.stopPropagation();
                                         }
                                         if (isBrowser) {
-                                          openLightbox(item, blogTitle, e);
+                                          openLightbox(item, blogTitle, e, allMedia);
                                         }
                                       }}
                                     >
@@ -555,7 +600,7 @@ export default function BlogsSimplePage() {
                                           if (e && typeof e.stopPropagation === 'function') {
                                             e.stopPropagation();
                                           }
-                                          openLightbox(item, blogTitle, e);
+                                          openLightbox(item, blogTitle, e, allMedia);
                                         }) : undefined}
                                       />
                                     </div>
@@ -630,11 +675,44 @@ export default function BlogsSimplePage() {
       {isBrowser && state.lightboxImages && (() => {
         // Safely extract properties to avoid TDZ errors
         const blogTitle = state.lightboxImages?.blogTitle || '';
-        const mediaItem = state.lightboxImages?.image || {};
-        const mediaType = mediaItem?.type || 'image';
-        const imageUrl = mediaItem?.imageUrl || mediaItem?.thumbnailUrl || '';
-        const videoUrl = mediaItem?.videoUrl || '';
-        const caption = mediaItem?.caption || '';
+        const allMedia = Array.isArray(state.lightboxImages?.allMedia) ? state.lightboxImages.allMedia : [];
+        const currentIndex = typeof state.lightboxImages?.currentIndex === 'number' ? state.lightboxImages.currentIndex : 0;
+        
+        // Get current media item
+        const currentItem = allMedia[currentIndex] || state.lightboxImages?.image || {};
+        const mediaType = currentItem?.type || 'image';
+        const imageUrl = currentItem?.imageUrl || currentItem?.thumbnailUrl || '';
+        const videoUrl = currentItem?.videoUrl || '';
+        const caption = currentItem?.caption || '';
+        
+        // Navigation functions
+        const goToNext = (e) => {
+          if (e) e.stopPropagation();
+          if (allMedia.length <= 1) return;
+          
+          const nextIndex = (currentIndex + 1) % allMedia.length;
+          setState(prev => ({
+            ...prev,
+            lightboxImages: {
+              ...prev.lightboxImages,
+              currentIndex: nextIndex
+            }
+          }));
+        };
+        
+        const goToPrev = (e) => {
+          if (e) e.stopPropagation();
+          if (allMedia.length <= 1) return;
+          
+          const prevIndex = (currentIndex - 1 + allMedia.length) % allMedia.length;
+          setState(prev => ({
+            ...prev,
+            lightboxImages: {
+              ...prev.lightboxImages,
+              currentIndex: prevIndex
+            }
+          }));
+        };
         
         return (
           <div 
@@ -668,11 +746,38 @@ export default function BlogsSimplePage() {
                   <h3 className="text-white text-xl font-semibold">{blogTitle}</h3>
                 </div>
               )}
+              
+              {/* Previous Button - only show if there are multiple media items */}
+              {allMedia.length > 1 && (
+                <button 
+                  onClick={goToPrev}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-3 z-10 focus:outline-none focus:ring-2 focus:ring-white"
+                  aria-label="Previous image"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
+                  </svg>
+                </button>
+              )}
+  
+              {/* Next Button - only show if there are multiple media items */}
+              {allMedia.length > 1 && (
+                <button 
+                  onClick={goToNext}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white hover:text-gray-300 transition-colors bg-black bg-opacity-50 rounded-full p-3 z-10 focus:outline-none focus:ring-2 focus:ring-white"
+                  aria-label="Next image"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                  </svg>
+                </button>
+              )}
   
               {/* Media Content */}
               <div className="relative w-full h-full flex items-center justify-center lightbox-media">
                 {mediaType === 'video' ? (
                   <video
+                    key={videoUrl} /* Key helps React re-render when source changes */
                     src={videoUrl}
                     controls
                     className="object-contain"
@@ -690,6 +795,7 @@ export default function BlogsSimplePage() {
                   </video>
                 ) : (
                   <img
+                    key={imageUrl} /* Key helps React re-render when source changes */
                     src={imageUrl}
                     alt={caption || blogTitle || 'Expanded image'}
                     className="object-contain cursor-pointer"
@@ -700,6 +806,7 @@ export default function BlogsSimplePage() {
                       maxHeight: '100vh',
                       objectFit: 'contain'
                     }}
+                    onClick={goToNext} /* Click image to go to next */
                   />
                 )}
                 
@@ -708,8 +815,14 @@ export default function BlogsSimplePage() {
                   <div className="bg-black bg-opacity-80 text-white px-4 py-1 rounded-full text-sm">
                     {caption || `${blogTitle} - Image`}
                   </div>
+                  {allMedia.length > 1 && (
+                    <div className="bg-black bg-opacity-80 text-white px-4 py-1 rounded-full text-sm">
+                      Image {currentIndex + 1} of {allMedia.length}
+                    </div>
+                  )}
                   <div className="bg-black bg-opacity-70 text-white text-xs px-4 py-1 rounded-full">
                     Press Esc to close • Space for video play/pause
+                    {allMedia.length > 1 ? ' • Arrow keys or click for navigation' : ''}
                   </div>
                 </div>
               </div>
