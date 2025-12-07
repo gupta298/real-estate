@@ -5,6 +5,50 @@ import { useRouter } from 'next/router';
 import { forceBaseUrl } from '@/utils/apiConfig';
 
 /**
+ * Helper function to ensure image URLs are absolute with error handling
+ */
+const getImageUrl = (url) => {
+  try {
+    // Handle null/undefined URLs
+    if (!url) return '/placeholder-property.jpg';
+    
+    // Handle empty strings
+    if (url.trim() === '') return '/placeholder-property.jpg';
+    
+    // If it's already an absolute URL (starts with http:// or https://)
+    if (url.match(/^https?:\/\//)) {
+      return url;
+    }
+    
+    // If it's a relative URL, append it to the correct base URL
+    if (url.startsWith('/')) {
+      // For subdomains, use special handling
+      if (typeof window !== 'undefined' && window.location.hostname.includes('.blueflagindy.com')) {
+        // Use the subdomain URL directly
+        const baseUrl = window.location.origin;
+        return `${baseUrl}${url}`;
+      } else {
+        // For static exports or other environments, use the current origin
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        return `${baseUrl}${url}`;
+      }
+    }
+    
+    // Check if URL might be a partial path missing the leading slash
+    if (!url.startsWith('/') && !url.match(/^https?:\/\//)) {
+      // Add leading slash and try again
+      return getImageUrl(`/${url}`);
+    }
+    
+    // Default fallback
+    return url;
+  } catch (err) {
+    console.error('[Image] Error processing URL:', err);
+    return '/placeholder-property.jpg';
+  }
+};
+
+/**
  * Simplified Off-Market component specifically for subdomain display
  * This removes many UI elements for a cleaner, more focused view
  */
@@ -195,7 +239,7 @@ export default function SubdomainOffMarket() {
                           }}
                         >
                           <img
-                            src={image.thumbnailUrl || image.imageUrl}
+                            src={getImageUrl(image.thumbnailurl || image.thumbnailUrl || image.imageurl || image.imageUrl)}
                             alt={image.caption || `Image ${index + 1}`}
                             className={`rounded border ${expandedImages[`${deal.id}-img-${index}`] ? 'w-full max-w-2xl mx-auto block' : 'w-24 h-24 object-cover'}`}
                           />

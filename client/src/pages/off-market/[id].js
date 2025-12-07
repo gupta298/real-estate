@@ -49,11 +49,78 @@ export default function OffMarketDealDetailPage() {
     }
   };
 
+  // Helper function to ensure image URLs are absolute with error handling
+  const getImageUrl = (url) => {
+    try {
+      // Handle null/undefined URLs
+      if (!url) return '/placeholder-property.jpg';
+      
+      // Handle empty strings
+      if (url.trim() === '') return '/placeholder-property.jpg';
+      
+      // If it's already an absolute URL (starts with http:// or https://)
+      if (url.match(/^https?:\/\//)) {
+        return url;
+      }
+      
+      // If it's a relative URL, append it to the correct base URL
+      if (url.startsWith('/')) {
+        // For subdomains, use special handling
+        if (typeof window !== 'undefined' && window.location.hostname.includes('.blueflagindy.com')) {
+          // Use the subdomain URL directly
+          const baseUrl = window.location.origin;
+          return `${baseUrl}${url}`;
+        } else {
+          // For static exports or other environments, use the current origin
+          const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+          return `${baseUrl}${url}`;
+        }
+      }
+      
+      // Check if URL might be a partial path missing the leading slash
+      if (!url.startsWith('/') && !url.match(/^https?:\/\//)) {
+        // Add leading slash and try again
+        return getImageUrl(`/${url}`);
+      }
+      
+      // Default fallback
+      return url;
+    } catch (err) {
+      console.error('[Image] Error processing URL:', err);
+      return '/placeholder-property.jpg';
+    }
+  };
+  
+  // Helper function to ensure video URLs are absolute (same logic as images)
+  const getVideoUrl = getImageUrl;
+  
   // Combine images and videos into a single media array, sorted by displayOrder
   const mediaItems = deal ? [
-    ...(deal.images || []).map(img => ({ ...img, type: 'image' })),
-    ...(deal.videos || []).map(vid => ({ ...vid, type: 'video' }))
-  ].sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0)) : [];
+    ...(deal.images || []).map(img => ({
+      ...img,
+      type: 'image',
+      // Ensure both lowercase and uppercase variants exist for compatibility
+      imageurl: img.imageurl || img.imageUrl,
+      imageUrl: img.imageurl || img.imageUrl,
+      thumbnailurl: img.thumbnailurl || img.thumbnailUrl,
+      thumbnailUrl: img.thumbnailurl || img.thumbnailUrl,
+      // Handle both versions of displayOrder
+      displayorder: img.displayorder || img.displayOrder || 0,
+      displayOrder: img.displayorder || img.displayOrder || 0
+    })),
+    ...(deal.videos || []).map(vid => ({
+      ...vid,
+      type: 'video',
+      // Ensure both lowercase and uppercase variants exist for compatibility
+      videourl: vid.videourl || vid.videoUrl,
+      videoUrl: vid.videourl || vid.videoUrl,
+      thumbnailurl: vid.thumbnailurl || vid.thumbnailUrl,
+      thumbnailUrl: vid.thumbnailurl || vid.thumbnailUrl,
+      // Handle both versions of displayOrder
+      displayorder: vid.displayorder || vid.displayOrder || 999,
+      displayOrder: vid.displayorder || vid.displayOrder || 999
+    }))
+  ].sort((a, b) => (a.displayOrder || a.displayorder || 0) - (b.displayOrder || b.displayorder || 0)) : [];
 
   // Keyboard navigation for lightbox - must be before any early returns
   useEffect(() => {
@@ -216,7 +283,7 @@ export default function OffMarketDealDetailPage() {
               {mediaItems[0].type === 'video' ? (
                 <div className="w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                   <video
-                    src={mediaItems[0].videoUrl}
+                    src={getVideoUrl(mediaItems[0].videourl || mediaItems[0].videoUrl)}
                     className="w-full h-full object-contain"
                     style={{ maxWidth: '100%', maxHeight: '100%' }}
                     controls
@@ -228,7 +295,7 @@ export default function OffMarketDealDetailPage() {
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-100">
                   <img
-                    src={mediaItems[0].imageUrl || mediaItems[0].thumbnailUrl}
+                    src={getImageUrl(mediaItems[0].imageurl || mediaItems[0].imageUrl || mediaItems[0].thumbnailurl || mediaItems[0].thumbnailUrl)}
                     alt={deal.title}
                     className="object-contain max-w-full max-h-full"
                     style={{ width: '100%', height: '100%', objectFit: 'contain' }}
@@ -281,7 +348,7 @@ export default function OffMarketDealDetailPage() {
                   {item.type === 'video' ? (
                     <div className="w-full h-full flex items-center justify-center bg-black">
                       <video
-                        src={item.videoUrl}
+                        src={getVideoUrl(item.videourl || item.videoUrl)}
                         className="w-full h-full object-cover" /* Using object-cover for better thumbnail appearance */
                         muted
                         playsInline
@@ -309,7 +376,7 @@ export default function OffMarketDealDetailPage() {
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
                       <img
-                        src={item.thumbnailUrl || item.imageUrl}
+                        src={getImageUrl(item.thumbnailurl || item.thumbnailUrl || item.imageurl || item.imageUrl)}
                         alt={`${deal.title} - ${item.type === 'video' ? 'Video' : 'Image'} ${index + 1}`}
                         className="object-cover w-full h-full" /* Using object-cover for better thumbnail appearance */
                       />
@@ -447,7 +514,7 @@ export default function OffMarketDealDetailPage() {
               {mediaItems[selectedImageIndex].type === 'video' ? (
                 <div className="video-container w-full h-full flex items-center justify-center">
                   <video
-                    src={mediaItems[selectedImageIndex].videoUrl}
+                    src={getVideoUrl(mediaItems[selectedImageIndex].videourl || mediaItems[selectedImageIndex].videoUrl)}
                     controls
                     className="max-w-full max-h-[90vh] object-contain"
                     autoPlay
@@ -467,7 +534,7 @@ export default function OffMarketDealDetailPage() {
               ) : (
                 <div className="image-container w-full h-full flex items-center justify-center" title="Click to advance to next image">
                   <img
-                    src={mediaItems[selectedImageIndex].imageUrl || mediaItems[selectedImageIndex].thumbnailUrl}
+                    src={getImageUrl(mediaItems[selectedImageIndex].imageurl || mediaItems[selectedImageIndex].imageUrl || mediaItems[selectedImageIndex].thumbnailurl || mediaItems[selectedImageIndex].thumbnailUrl)}
                     alt={`${deal.title} - ${mediaItems[selectedImageIndex].type === 'video' ? 'Video' : 'Image'} ${selectedImageIndex + 1}`}
                     className="object-contain cursor-pointer max-w-full max-h-[90vh]"
                   />
@@ -522,7 +589,7 @@ export default function OffMarketDealDetailPage() {
                         <>
                           <div className="w-full h-full flex items-center justify-center bg-black">
                             <video
-                              src={item.videoUrl}
+                              src={getVideoUrl(item.videourl || item.videoUrl)}
                               className="w-full h-full object-cover"
                               muted
                               preload="metadata"
@@ -537,7 +604,7 @@ export default function OffMarketDealDetailPage() {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-black">
                           <Image
-                            src={item.thumbnailUrl || item.imageUrl}
+                            src={getImageUrl(item.thumbnailurl || item.thumbnailUrl || item.imageurl || item.imageUrl)}
                             alt={`Thumbnail ${index + 1}`}
                             fill
                             className="object-cover"

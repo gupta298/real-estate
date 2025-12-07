@@ -4,6 +4,50 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { FiBed, FiHome, FiMapPin, FiDroplet } from 'react-icons/fi';
 
+/**
+ * Helper function to ensure image URLs are absolute with error handling
+ */
+const getImageUrl = (url) => {
+  try {
+    // Handle null/undefined URLs
+    if (!url) return '/placeholder-property.jpg';
+    
+    // Handle empty strings
+    if (url.trim() === '') return '/placeholder-property.jpg';
+    
+    // If it's already an absolute URL (starts with http:// or https://)
+    if (url.match(/^https?:\/\//)) {
+      return url;
+    }
+    
+    // If it's a relative URL, append it to the correct base URL
+    if (url.startsWith('/')) {
+      // For subdomains, use special handling
+      if (typeof window !== 'undefined' && window.location.hostname.includes('.blueflagindy.com')) {
+        // Use the subdomain URL directly
+        const baseUrl = window.location.origin;
+        return `${baseUrl}${url}`;
+      } else {
+        // For static exports or other environments, use the current origin
+        const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+        return `${baseUrl}${url}`;
+      }
+    }
+    
+    // Check if URL might be a partial path missing the leading slash
+    if (!url.startsWith('/') && !url.match(/^https?:\/\//)) {
+      // Add leading slash and try again
+      return getImageUrl(`/${url}`);
+    }
+    
+    // Default fallback
+    return url;
+  } catch (err) {
+    console.error('[Image] Error processing URL:', err);
+    return '/placeholder-property.jpg';
+  }
+};
+
 export default function PropertyCard({ property }) {
   const formatPrice = (price) => {
     return new Intl.NumberFormat('en-US', {
@@ -14,7 +58,11 @@ export default function PropertyCard({ property }) {
   };
 
   const primaryImage = property.images?.find(img => img.isPrimary) || property.images?.[0];
-  const imageUrl = primaryImage?.imageUrl || primaryImage?.thumbnailUrl || '/placeholder-property.jpg';
+  
+  // Handle case sensitivity in API responses (imageurl vs imageUrl)
+  const imageUrl = primaryImage ? 
+    getImageUrl(primaryImage.imageurl || primaryImage.imageUrl || primaryImage.thumbnailurl || primaryImage.thumbnailUrl) : 
+    '/placeholder-property.jpg';
 
   return (
     <Link href={`/properties/${property.id}`} className="card group">
